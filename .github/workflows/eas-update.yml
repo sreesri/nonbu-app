@@ -1,0 +1,40 @@
+name: OTA update
+
+# Every push to main publishes the JS bundle to the "production" channel.
+# Installed APKs pick it up on next launch — unless native code changed, in which
+# case the runtime fingerprint differs and a new APK build is needed instead.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: eas-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+      - name: Publish update
+        env:
+          MESSAGE: ${{ github.event.head_commit.message || 'manual update' }}
+        run: >
+          eas update --channel production --environment production --platform android
+          --message "$MESSAGE" --non-interactive
