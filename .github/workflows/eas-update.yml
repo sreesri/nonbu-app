@@ -30,7 +30,9 @@ jobs:
 
       - run: npm ci
 
-      - run: npx tsc --noEmit
+      - run: npm run lint
+
+      - run: npm run typecheck
 
       - name: Publish update
         env:
