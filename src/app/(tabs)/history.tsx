@@ -40,7 +40,7 @@ function BarChart({
               bottom: (goal / max) * height,
               borderTopWidth: 1,
               borderStyle: 'dashed',
-              borderColor: t.textMuted,
+              borderColor: t.chart.goalLine,
             }}
           />
         ) : null}
@@ -50,7 +50,7 @@ function BarChart({
             style={{
               flex: 1,
               height: Math.max((value(d) / max) * height, value(d) ? 2 : 0),
-              backgroundColor: goal && value(d) > goal ? t.danger : color,
+              backgroundColor: goal && value(d) > goal ? t.chart.over : color,
               borderTopLeftRadius: 3,
               borderTopRightRadius: 3,
             }}
@@ -60,7 +60,7 @@ function BarChart({
       {showLabels ? (
         <View style={{ flexDirection: 'row', gap: 2 }}>
           {days.map((d) => (
-            <Text key={d.date} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: t.textMuted }}>
+            <Text key={d.date} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: t.chart.label }}>
               {format(parseISO(d.date), days.length <= 7 ? 'EEE' : 'd')}
             </Text>
           ))}
@@ -141,7 +141,7 @@ export default function HistoryScreen() {
               <Label muted>Fasting hours</Label>
               {goals ? <Label muted>🔥 {streak(days, goals.default_fast_hours)} day streak</Label> : null}
             </Row>
-            <BarChart days={days} value={(d) => d.fasting_hours} color={t.fat} unit="h" />
+            <BarChart days={days} value={(d) => d.fasting_hours} color={t.fasting} unit="h" />
           </Card>
         </>
       )}

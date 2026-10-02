@@ -1,39 +1,129 @@
 import { useColorScheme } from 'react-native';
 
+/**
+ * Design tokens, in three layers:
+ *   1. `palette`   — raw colors built around the brand navy #003049. Never used directly by UI.
+ *   2. semantic    — what a color *means* (background, text, primary, danger…), per scheme.
+ *   3. component   — what each component paints with, derived from the semantic layer.
+ * Screens use semantic tokens; shared components in `src/components/` use component tokens.
+ * All text/background pairs meet WCAG AA (4.5:1) and bars/graphics meet 3:1 in both schemes.
+ */
+export const palette = {
+  white: '#FFFFFF',
+  /** Brand scale (OKLCH tints/shades of #003049). */
+  navy: {
+    50: '#ECF7FF',
+    100: '#D7EBFA',
+    200: '#B6D6EC',
+    300: '#8DBBDA',
+    400: '#6C98B6',
+    500: '#4C7794',
+    600: '#2F5A76',
+    700: '#18445E',
+    800: '#003049',
+    950: '#001624',
+  },
+  /** Navy-tinted neutrals for light-mode surfaces and muted text. */
+  slate: {
+    50: '#F4F7F9',
+    100: '#E4ECF1',
+    200: '#D3DEE5',
+    400: '#93AEBF',
+    600: '#4A5D69',
+  },
+  /** Deep navy surfaces for dark mode. */
+  ink: {
+    700: '#163E55',
+    800: '#0B3045',
+    900: '#04202F',
+    950: '#000F18',
+  },
+  // Accents from the classic #003049 palette (orange, crimson, gold), plus sky and plum for data.
+  orange: { 400: '#F77F00', 600: '#B35400' },
+  red: { 400: '#FF6B6B', 600: '#C1121F' },
+  gold: { 300: '#FCBF49', 600: '#A87400' },
+  sky: { 300: '#7FB3D9', 600: '#3F7CA6' },
+  plum: { 300: '#C4A3E0', 600: '#7B4F9E' },
+} as const;
+
 const light = {
-  background: '#F7F7F5',
-  surface: '#FFFFFF',
-  surfaceMuted: '#EFEFEC',
-  text: '#1B1C1A',
-  textMuted: '#6B6D68',
-  border: '#E2E2DE',
-  primary: '#0F766E',
-  primaryText: '#FFFFFF',
-  danger: '#B42318',
-  protein: '#2563EB',
-  carbs: '#D97706',
-  fat: '#9333EA',
+  background: palette.slate[50],
+  surface: palette.white,
+  surfaceMuted: palette.slate[100],
+  border: palette.slate[200],
+  text: palette.navy[950],
+  textMuted: palette.slate[600],
+  primary: palette.navy[800],
+  primaryText: palette.white,
+  accent: palette.orange[600],
+  accentText: palette.white,
+  danger: palette.red[600],
+  highlight: 'rgba(255,255,255,0.35)',
+  fasting: palette.navy[800],
+  eating: palette.orange[600],
+  protein: palette.sky[600],
+  carbs: palette.gold[600],
+  fat: palette.plum[600],
 };
 
-const dark: typeof light = {
-  background: '#121312',
-  surface: '#1C1D1C',
-  surfaceMuted: '#262826',
-  text: '#EDEDEA',
-  textMuted: '#A0A29D',
-  border: '#2F312F',
-  primary: '#2DD4BF',
-  primaryText: '#062623',
-  danger: '#F97066',
-  protein: '#60A5FA',
-  carbs: '#FBBF24',
-  fat: '#C084FC',
+type ColorTokens = { [K in keyof typeof light]: string };
+
+const dark: ColorTokens = {
+  background: palette.ink[950],
+  surface: palette.ink[900],
+  surfaceMuted: palette.ink[800],
+  border: palette.ink[700],
+  text: palette.slate[100],
+  textMuted: palette.slate[400],
+  primary: palette.navy[300],
+  primaryText: palette.navy[950],
+  accent: palette.orange[400],
+  accentText: palette.navy[950],
+  danger: palette.red[400],
+  highlight: 'rgba(255,255,255,0.25)',
+  fasting: palette.navy[300],
+  eating: palette.orange[400],
+  protein: palette.sky[300],
+  carbs: palette.gold[300],
+  fat: palette.plum[300],
 };
 
-export type Theme = typeof light;
+function componentTokens(c: ColorTokens) {
+  return {
+    header: { bg: c.surface, fg: c.text },
+    tabBar: { bg: c.surface, border: c.border, active: c.primary, inactive: c.textMuted },
+    card: { bg: c.surface, border: c.border },
+    button: {
+      primary: { bg: c.primary, fg: c.primaryText },
+      secondary: { bg: c.surfaceMuted, fg: c.text },
+      danger: { bg: c.surfaceMuted, fg: c.danger },
+    },
+    chip: {
+      bg: c.surfaceMuted,
+      fg: c.text,
+      border: c.border,
+      selectedBg: c.primary,
+      selectedFg: c.primaryText,
+      selectedBorder: c.primary,
+    },
+    input: { bg: c.surface, fg: c.text, border: c.border, placeholder: c.textMuted },
+    progress: { track: c.surfaceMuted, fill: c.primary, over: c.danger, shimmer: c.highlight },
+    chart: { goalLine: c.textMuted, label: c.textMuted, over: c.danger },
+    banner: { bg: c.primary, fg: c.primaryText },
+    spinner: c.primary,
+  };
+}
+
+function buildTheme(colors: ColorTokens) {
+  return { ...colors, ...componentTokens(colors) };
+}
+
+const themes = { light: buildTheme(light), dark: buildTheme(dark) };
+
+export type Theme = ReturnType<typeof buildTheme>;
 
 export function useTheme(): Theme {
-  return useColorScheme() === 'dark' ? dark : light;
+  return useColorScheme() === 'dark' ? themes.dark : themes.light;
 }
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 };

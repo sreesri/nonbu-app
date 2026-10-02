@@ -63,7 +63,7 @@ export function Body({ children, muted, style }: { children: ReactNode; muted?: 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const t = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }, style]}>{children}</View>
+    <View style={[styles.card, { backgroundColor: t.card.bg, borderColor: t.card.border }, style]}>{children}</View>
   );
 }
 
@@ -83,8 +83,7 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const t = useTheme();
-  const bg = variant === 'primary' ? t.primary : t.surfaceMuted;
-  const fg = variant === 'primary' ? t.primaryText : variant === 'danger' ? t.danger : t.text;
+  const { bg, fg } = t.button[variant];
   return (
     <Pressable
       accessibilityRole="button"
@@ -107,9 +106,9 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
     <View style={{ flex: 1, gap: spacing.xs }}>
       <Label muted>{label}</Label>
       <TextInput
-        placeholderTextColor={t.textMuted}
+        placeholderTextColor={t.input.placeholder}
         {...props}
-        style={[styles.input, { color: t.text, backgroundColor: t.surface, borderColor: t.border }, props.style]}
+        style={[styles.input, { color: t.input.fg, backgroundColor: t.input.bg, borderColor: t.input.border }, props.style]}
       />
     </View>
   );
@@ -122,10 +121,13 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
       onPress={onPress}
       style={[
         styles.chip,
-        { backgroundColor: selected ? t.primary : t.surfaceMuted, borderColor: selected ? t.primary : t.border },
+        {
+          backgroundColor: selected ? t.chip.selectedBg : t.chip.bg,
+          borderColor: selected ? t.chip.selectedBorder : t.chip.border,
+        },
       ]}
     >
-      <Text style={{ color: selected ? t.primaryText : t.text, fontWeight: '600', textTransform: 'capitalize' }}>
+      <Text style={{ color: selected ? t.chip.selectedFg : t.chip.fg, fontWeight: '600', textTransform: 'capitalize' }}>
         {label}
       </Text>
     </Pressable>
@@ -140,7 +142,7 @@ export function Loading() {
   const t = useTheme();
   return (
     <View style={{ padding: spacing.xl, alignItems: 'center' }}>
-      <ActivityIndicator color={t.primary} />
+      <ActivityIndicator color={t.spinner} />
     </View>
   );
 }

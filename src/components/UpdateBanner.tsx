@@ -37,12 +37,12 @@ export function UpdateBanner() {
         left: spacing.lg,
         right: spacing.lg,
         bottom: insets.bottom + 72,
-        backgroundColor: t.primary,
+        backgroundColor: t.banner.bg,
         borderRadius: radius.md,
         padding: spacing.md,
       }}
     >
-      <Text style={{ color: t.primaryText, fontWeight: '600', textAlign: 'center' }}>
+      <Text style={{ color: t.banner.fg, fontWeight: '600', textAlign: 'center' }}>
         A new version is ready — tap to restart
       </Text>
     </Pressable>

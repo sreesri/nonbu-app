@@ -44,13 +44,13 @@ export function DateTimeField({
         onPress={() => setMode('date')}
         style={{
           borderWidth: 1,
-          borderColor: t.border,
-          backgroundColor: t.surface,
+          borderColor: t.input.border,
+          backgroundColor: t.input.bg,
           borderRadius: radius.sm,
           padding: spacing.md,
         }}
       >
-        <Text style={{ color: t.text, fontSize: 16 }}>{format(value, 'EEE d MMM yyyy, h:mm a')}</Text>
+        <Text style={{ color: t.input.fg, fontSize: 16 }}>{format(value, 'EEE d MMM yyyy, h:mm a')}</Text>
       </Pressable>
       {mode && (
         <DateTimePicker value={value} mode={mode} onChange={handle} maximumDate={mode === 'date' ? maximumDate : undefined} />

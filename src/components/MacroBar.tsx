@@ -23,13 +23,13 @@ export function MacroBar({
     <View style={{ gap: spacing.xs }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <Text style={{ color: t.text, fontWeight: '600' }}>{label}</Text>
-        <Text style={{ color: over ? t.danger : t.textMuted }}>
+        <Text style={{ color: over ? t.progress.over : t.textMuted }}>
           {Math.round(value)}
           {goal ? ` / ${Math.round(goal)}` : ''} {unit}
         </Text>
       </View>
-      <View style={{ height: 8, borderRadius: 4, backgroundColor: t.surfaceMuted, overflow: 'hidden' }}>
-        <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: over ? t.danger : color }} />
+      <View style={{ height: 8, borderRadius: 4, backgroundColor: t.progress.track, overflow: 'hidden' }}>
+        <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: over ? t.progress.over : color }} />
       </View>
     </View>
   );

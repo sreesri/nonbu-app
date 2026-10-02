@@ -15,6 +15,8 @@ export type Goals = {
   carbs_g: number | null;
   fat_g: number | null;
   default_fast_hours: number;
+  /** Derived by the backend: 24 - default_fast_hours. Read-only. */
+  eating_window_hours: number;
 };
 
 export type User = {
@@ -29,7 +31,7 @@ export type User = {
 export type UserPatch = {
   name?: string;
   timezone?: string;
-  goals?: Partial<Goals>;
+  goals?: Partial<Omit<Goals, 'eating_window_hours'>>;
 };
 
 export type Fast = {

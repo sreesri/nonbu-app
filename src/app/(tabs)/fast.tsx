@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, RefreshControl, Text, View } from 'react-native';
 
 import { useCurrentFast, useEndFast, useFasts, useMe, useStartFast, useUpdateFast } from '@/api/hooks';
@@ -7,7 +7,6 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Body, Button, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
 import { formatDateTime, formatDuration, formatHours, shiftDateKey, todayKey } from '@/lib/format';
-import { syncFastNotification } from '@/lib/notifications';
 import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
 
@@ -29,10 +28,6 @@ export default function FastScreen() {
 
   const fast = current.data;
   const selectedTarget = target ?? me.data?.goals.default_fast_hours ?? 16;
-
-  useEffect(() => {
-    if (current.isSuccess) syncFastNotification(fast).catch(() => {});
-  }, [current.isSuccess, fast]);
 
   const lastEnded = recent.data?.find((f) => f.ended_at);
 
