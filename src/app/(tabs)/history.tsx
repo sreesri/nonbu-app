@@ -2,8 +2,8 @@ import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, Text, View } from 'react-native';
 
-import { useDeleteFast, useFasts, useRangeSummary } from '@/api/hooks';
-import type { DailySummary } from '@/api/types';
+import { useDeleteSession, useRangeSummary, useSessions } from '@/api/hooks';
+import type { DailySummary, Session } from '@/api/types';
 import { Body, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
 import { formatDateTime, formatHours, shiftDateKey, todayKey } from '@/lib/format';
 import { spacing, useTheme, type Theme } from '@/lib/theme';
@@ -91,27 +91,31 @@ export default function HistoryScreen() {
   const to = todayKey();
   const from = shiftDateKey(to, -(range - 1));
   const summary = useRangeSummary(from, to);
-  const fasts = useFasts(from, to);
-  const del = useDeleteFast();
+  const sessions = useSessions(from, to);
+  const del = useDeleteSession();
   const now = useNow(60_000);
 
   const days = summary.data ?? [];
   const goals = days[0]?.goals;
 
   const confirmDelete = (id: number) =>
-    Alert.alert('Delete fast?', 'This cannot be undone.', [
+    Alert.alert(
+      'Delete session?',
+      'The sessions around it are joined back together (deleting the current one resumes the previous). This cannot be undone.',
+      [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => del.mutate(id) },
-    ]);
+        { text: 'Delete', style: 'destructive', onPress: () => del.mutate(id) },
+      ],
+    );
 
   return (
     <Screen
       refreshControl={
         <RefreshControl
-          refreshing={summary.isRefetching || fasts.isRefetching}
+          refreshing={summary.isRefetching || sessions.isRefetching}
           onRefresh={() => {
             summary.refetch();
-            fasts.refetch();
+            sessions.refetch();
           }}
         />
       }
@@ -122,7 +126,7 @@ export default function HistoryScreen() {
           <Chip key={r} label={`${r} days`} selected={range === r} onPress={() => setRange(r)} />
         ))}
       </Row>
-      <ErrorText error={summary.error ?? fasts.error ?? del.error} />
+      <ErrorText error={summary.error ?? sessions.error ?? del.error} />
 
       {summary.isPending ? (
         <Loading />
@@ -147,39 +151,50 @@ export default function HistoryScreen() {
       )}
 
       <Card>
-        <Label muted>Fasts</Label>
-        {fasts.data?.length ? (
-          fasts.data.map((f) => <FastRow key={f.id} fast={f} now={now} t={t} onLongPress={() => confirmDelete(f.id)} />)
+        <Label muted>Sessions</Label>
+        {sessions.data?.length ? (
+          sessions.data.map((s) => (
+            <SessionRow key={s.id} session={s} now={now} t={t} onLongPress={() => confirmDelete(s.id)} />
+          ))
         ) : (
-          <Body muted>No fasts in this range.</Body>
+          <Body muted>No sessions in this range.</Body>
         )}
-        {fasts.data?.length ? <Body muted style={{ fontSize: 12 }}>Long-press a fast to delete it.</Body> : null}
+        {sessions.data?.length ? <Body muted style={{ fontSize: 12 }}>Long-press a session to delete it.</Body> : null}
       </Card>
     </Screen>
   );
 }
 
-function FastRow({
-  fast,
+function SessionRow({
+  session,
   now,
   t,
   onLongPress,
 }: {
-  fast: { started_at: string; ended_at: string | null; target_hours: number };
+  session: Session;
   now: number;
   t: Theme;
   onLongPress: () => void;
 }) {
-  const end = fast.ended_at ? new Date(fast.ended_at).getTime() : now;
-  const hours = (end - new Date(fast.started_at).getTime()) / 3600_000;
-  const hit = hours >= fast.target_hours;
+  const isFast = session.kind === 'fast';
+  const end = session.ended_at ? new Date(session.ended_at).getTime() : now;
+  const hours = (end - new Date(session.started_at).getTime()) / 3600_000;
+  const hit = isFast && hours >= session.target_hours;
   return (
-    <Pressable onLongPress={onLongPress}>
+    <Pressable
+      onLongPress={onLongPress}
+      accessibilityRole="button"
+      accessibilityHint="Long-press to delete"
+      style={{ borderLeftWidth: 3, borderLeftColor: isFast ? t.fasting : t.eating, paddingLeft: spacing.sm }}
+    >
       <Row style={{ justifyContent: 'space-between', paddingVertical: spacing.xs }}>
         <View>
-          <Body>{formatDateTime(fast.started_at)}</Body>
+          <Body>
+            {isFast ? 'Fast' : 'Eating'} · {formatDateTime(session.started_at)}
+          </Body>
           <Body muted style={{ fontSize: 13 }}>
-            {fast.ended_at ? `→ ${formatDateTime(fast.ended_at)}` : 'In progress'} · goal {fast.target_hours}h
+            {session.ended_at ? `→ ${formatDateTime(session.ended_at)}` : 'In progress'} ·{' '}
+            {isFast ? 'goal' : 'window'} {formatHours(session.target_hours)}
           </Body>
         </View>
         <Body style={{ color: hit ? t.primary : t.textMuted, fontWeight: '600' }}>

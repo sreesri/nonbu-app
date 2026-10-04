@@ -8,11 +8,14 @@ export function ProgressRing({
   progress,
   size = 240,
   stroke = 16,
+  color,
   children,
 }: {
   progress: number;
   size?: number;
   stroke?: number;
+  /** Fill color; defaults to the theme's progress fill. */
+  color?: string;
   children?: ReactNode;
 }) {
   const t = useTheme();
@@ -27,7 +30,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={t.progress.fill}
+          stroke={color ?? t.progress.fill}
           strokeWidth={stroke}
           fill="none"
           strokeLinecap="round"

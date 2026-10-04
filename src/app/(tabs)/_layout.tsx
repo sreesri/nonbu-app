@@ -2,8 +2,8 @@ import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
 import { Text, type ColorValue } from 'react-native';
 
-import { useCurrentFast } from '@/api/hooks';
-import { syncFastNotification } from '@/lib/notifications';
+import { useCurrentSession } from '@/api/hooks';
+import { syncSessionNotification } from '@/lib/notifications';
 import { useTheme } from '@/lib/theme';
 
 const icon = (glyph: string) =>
@@ -13,11 +13,12 @@ const icon = (glyph: string) =>
 
 export default function TabsLayout() {
   const t = useTheme();
-  const current = useCurrentFast();
+  const current = useCurrentSession();
 
-  // Lives here rather than in one screen because a fast can be started from Home or Fast.
+  // Lives here rather than in one screen because a session can be switched from Home or Fast.
+  // Best-effort: a missing permission or scheduling failure must not break the app.
   useEffect(() => {
-    if (current.isSuccess) syncFastNotification(current.data).catch(() => {});
+    if (current.isSuccess) syncSessionNotification(current.data).catch(() => {});
   }, [current.isSuccess, current.data]);
 
   return (
