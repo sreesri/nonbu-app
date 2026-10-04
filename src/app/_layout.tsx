@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { AppState, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useMe } from '@/api/hooks';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { Loading } from '@/components/ui';
@@ -15,9 +16,11 @@ AppState.addEventListener('change', (state) => focusManager.setFocused(state ===
 
 function RootNavigator() {
   const { status } = useAuth();
+  const signedIn = status === 'signedIn';
+  const me = useMe(signedIn);
   const t = useTheme();
 
-  if (status === 'loading') {
+  if (status === 'loading' || (signedIn && me.isPending)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: t.background }}>
         <Loading />
@@ -25,7 +28,8 @@ function RootNavigator() {
     );
   }
 
-  const signedIn = status === 'signedIn';
+  // If /me fails (e.g. offline) fall through to the tabs; the gate re-applies once it loads.
+  const onboarding = signedIn && me.data?.onboarded_at === null;
   return (
     <Stack
       screenOptions={{
@@ -34,7 +38,10 @@ function RootNavigator() {
         contentStyle: { backgroundColor: t.background },
       }}
     >
-      <Stack.Protected guard={signedIn}>
+      <Stack.Protected guard={onboarding}>
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={signedIn && !onboarding}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="food/new" options={{ title: 'Add food', presentation: 'modal' }} />
         <Stack.Screen name="food/[id]" options={{ title: 'Edit food', presentation: 'modal' }} />

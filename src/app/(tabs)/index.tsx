@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { RefreshControl, Text, View } from 'react-native';
 
-import { useCurrentFast, useDailySummary, useFasts, useMe, useStartFast } from '@/api/hooks';
+import { useCurrentSession, useDailySummary, useMe, useSwitchSession } from '@/api/hooks';
 import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
 import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
-import { formatDuration, shiftDateKey, todayKey } from '@/lib/format';
+import { formatDuration, todayKey } from '@/lib/format';
+import { DEFAULT_FAST_HOURS } from '@/lib/goals';
 import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
 
@@ -24,45 +25,29 @@ export default function HomeScreen() {
   const now = useNow();
   const today = todayKey();
   const me = useMe();
-  const current = useCurrentFast();
-  const recent = useFasts(shiftDateKey(today, -6), today);
+  const current = useCurrentSession();
   const summary = useDailySummary(today);
-  const start = useStartFast();
+  const start = useSwitchSession();
 
-  const fast = current.data;
+  const session = current.data;
   const s = summary.data;
   const firstName = me.data?.name?.split(' ')[0];
-  const defaultTarget = me.data?.goals.default_fast_hours ?? 16;
-  const eatingHours = me.data?.goals.eating_window_hours ?? 24 - defaultTarget;
-  const lastEnded = recent.data?.find((f) => f.ended_at);
+  const defaultTarget = me.data?.goals.default_fast_hours ?? DEFAULT_FAST_HOURS;
 
-  // The current phase: an open fast, or the eating window (from the fasting schedule in
-  // Settings) since the last fast ended.
-  const phase = fast
-    ? {
-        kind: 'fast' as const,
-        startMs: new Date(fast.started_at).getTime(),
-        hours: fast.target_hours,
-      }
-    : lastEnded?.ended_at && eatingHours > 0
-      ? {
-          kind: 'eat' as const,
-          startMs: parseISO(lastEnded.ended_at).getTime(),
-          hours: eatingHours,
-        }
-      : null;
+  const phase = session
+    ? { kind: session.kind, startMs: new Date(session.started_at).getTime(), hours: session.target_hours }
+    : null;
 
-  const refreshing = me.isRefetching || current.isRefetching || recent.isRefetching || summary.isRefetching;
+  const refreshing = me.isRefetching || current.isRefetching || summary.isRefetching;
   const refresh = () => {
     me.refetch();
     current.refetch();
-    recent.refetch();
     summary.refetch();
   };
 
   const onStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    start.mutate({ target_hours: defaultTarget });
+    start.mutate({ kind: 'fast', target_hours: defaultTarget });
   };
 
   return (
@@ -76,7 +61,7 @@ export default function HomeScreen() {
       </View>
 
       <Card>
-        {current.isPending || recent.isPending ? (
+        {current.isPending ? (
           <Loading />
         ) : phase ? (
           (() => {
@@ -130,7 +115,7 @@ export default function HomeScreen() {
             <Body muted>No fasts yet. Start one to see your timer here.</Body>
           </View>
         )}
-        {fast ? (
+        {phase?.kind === 'fast' ? (
           <Button title="Open timer" variant="secondary" onPress={() => router.navigate('/fast')} />
         ) : current.isSuccess ? (
           <Button title={`Start ${defaultTarget}h fast`} onPress={onStart} loading={start.isPending} />
@@ -183,7 +168,7 @@ export default function HomeScreen() {
         </Row>
       </Card>
 
-      <ErrorText error={me.error ?? current.error ?? recent.error ?? summary.error ?? start.error} />
+      <ErrorText error={me.error ?? current.error ?? summary.error ?? start.error} />
     </Screen>
   );
 }

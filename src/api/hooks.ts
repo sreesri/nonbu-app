@@ -1,12 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
-import type { DailySummary, Fast, FoodEntry, FoodInput, User, UserPatch } from './types';
+import type {
+  DailySummary,
+  FoodEntry,
+  FoodInput,
+  OnboardingInput,
+  Session,
+  SessionKind,
+  SessionSwitch,
+  User,
+  UserPatch,
+} from './types';
 
 export const keys = {
   me: ['me'] as const,
-  currentFast: ['fasts', 'current'] as const,
-  fasts: (from: string, to: string) => ['fasts', 'list', from, to] as const,
+  currentSession: ['sessions', 'current'] as const,
+  sessions: (from: string, to: string, kind?: SessionKind) => ['sessions', 'list', from, to, kind] as const,
   food: (date: string) => ['food', 'day', date] as const,
   foodEntry: (id: number) => ['food', 'entry', id] as const,
   recentFood: ['food', 'recent'] as const,
@@ -31,58 +41,61 @@ export function useUpdateMe() {
   });
 }
 
-// --- fasts --------------------------------------------------------------
-
-export function useCurrentFast() {
-  return useQuery({ queryKey: keys.currentFast, queryFn: () => api<Fast | null>('/fasts/current') });
-}
-
-export function useFasts(from: string, to: string) {
-  return useQuery({
-    queryKey: keys.fasts(from, to),
-    queryFn: () => api<Fast[]>('/fasts', { query: { from, to } }),
+export function useCompleteOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OnboardingInput) => api<User>('/me/onboarding', { method: 'POST', body }),
+    onSuccess: (user) => {
+      qc.setQueryData(keys.me, user);
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+      qc.invalidateQueries({ queryKey: ['summary'] });
+    },
   });
 }
 
-function useInvalidateFasts() {
+// --- sessions -----------------------------------------------------------
+
+export function useCurrentSession() {
+  return useQuery({ queryKey: keys.currentSession, queryFn: () => api<Session | null>('/sessions/current') });
+}
+
+export function useSessions(from: string, to: string, kind?: SessionKind) {
+  return useQuery({
+    queryKey: keys.sessions(from, to, kind),
+    queryFn: () => api<Session[]>('/sessions', { query: { from, to, kind } }),
+  });
+}
+
+function useInvalidateSessions() {
   const qc = useQueryClient();
   return () => {
-    qc.invalidateQueries({ queryKey: ['fasts'] });
+    qc.invalidateQueries({ queryKey: ['sessions'] });
     qc.invalidateQueries({ queryKey: ['summary'] });
   };
 }
 
-export function useStartFast() {
-  const invalidate = useInvalidateFasts();
+/** Close the current session and open one of the other kind (start or end a fast). */
+export function useSwitchSession() {
+  const invalidate = useInvalidateSessions();
   return useMutation({
-    mutationFn: (body: { started_at?: string; target_hours?: number }) =>
-      api<Fast>('/fasts/start', { method: 'POST', body }),
+    mutationFn: (body: SessionSwitch) => api<Session>('/sessions/switch', { method: 'POST', body }),
     onSettled: invalidate,
   });
 }
 
-export function useEndFast() {
-  const invalidate = useInvalidateFasts();
+export function useUpdateSession() {
+  const invalidate = useInvalidateSessions();
   return useMutation({
-    mutationFn: ({ id, ended_at }: { id: number; ended_at?: string }) =>
-      api<Fast>(`/fasts/${id}/end`, { method: 'POST', body: { ended_at } }),
+    mutationFn: ({ id, ...patch }: Partial<Omit<Session, 'kind'>> & { id: number }) =>
+      api<Session>(`/sessions/${id}`, { method: 'PATCH', body: patch }),
     onSettled: invalidate,
   });
 }
 
-export function useUpdateFast() {
-  const invalidate = useInvalidateFasts();
+export function useDeleteSession() {
+  const invalidate = useInvalidateSessions();
   return useMutation({
-    mutationFn: ({ id, ...patch }: Partial<Fast> & { id: number }) =>
-      api<Fast>(`/fasts/${id}`, { method: 'PATCH', body: patch }),
-    onSettled: invalidate,
-  });
-}
-
-export function useDeleteFast() {
-  const invalidate = useInvalidateFasts();
-  return useMutation({
-    mutationFn: (id: number) => api<void>(`/fasts/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => api<void>(`/sessions/${id}`, { method: 'DELETE' }),
     onSettled: invalidate,
   });
 }
