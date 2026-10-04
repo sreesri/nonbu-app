@@ -55,6 +55,7 @@ export default function FoodScreen() {
             <MacroBar label="Protein" value={s.totals.protein_g} goal={s.goals.protein_g} unit="g" color={t.protein} />
             <MacroBar label="Carbs" value={s.totals.carbs_g} goal={s.goals.carbs_g} unit="g" color={t.carbs} />
             <MacroBar label="Fat" value={s.totals.fat_g} goal={s.goals.fat_g} unit="g" color={t.fat} />
+            <MacroBar label="Fiber" value={s.totals.fiber_g} goal={s.goals.fiber_g} unit="g" color={t.fiber} />
             <Body muted>Fasted {formatHours(s.fasting_hours)} this day</Body>
           </>
         ) : (
@@ -92,7 +93,7 @@ export default function FoodScreen() {
                           {e.quantity ? ` · ${e.quantity}${e.unit ? ` ${e.unit}` : ''}` : ''}
                         </Body>
                         <Body muted style={{ fontSize: 13 }}>
-                          {formatTime(e.eaten_at)} · P {round(e.protein_g)} · C {round(e.carbs_g)} · F {round(e.fat_g)}
+                          {formatTime(e.eaten_at)} · P {round(e.protein_g)} · C {round(e.carbs_g)} · F {round(e.fat_g)} · Fb {round(e.fiber_g)}
                         </Body>
                       </View>
                       <Body style={{ fontWeight: '600' }}>{round(e.calories)}</Body>

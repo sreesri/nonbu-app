@@ -14,6 +14,7 @@ export type Goals = {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  fiber_g: number | null;
   default_fast_hours: number;
   /** Derived by the backend: 24 - default_fast_hours. Read-only. */
   eating_window_hours: number;
@@ -79,12 +80,13 @@ export type FoodEntry = {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  fiber_g: number | null;
   notes: string | null;
 };
 
 export type FoodInput = Omit<FoodEntry, 'id'>;
 
-export type Totals = { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+export type Totals = { calories: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number };
 
 export type DailySummary = {
   date: string;
