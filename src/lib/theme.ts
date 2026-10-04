@@ -38,12 +38,13 @@ export const palette = {
     900: '#04202F',
     950: '#000F18',
   },
-  // Accents from the classic #003049 palette (orange, crimson, gold), plus sky and plum for data.
+  // Accents from the classic #003049 palette (orange, crimson, gold), plus sky, plum and green for data.
   orange: { 400: '#F77F00', 600: '#B35400' },
   red: { 400: '#FF6B6B', 600: '#C1121F' },
   gold: { 300: '#FCBF49', 600: '#A87400' },
   sky: { 300: '#7FB3D9', 600: '#3F7CA6' },
   plum: { 300: '#C4A3E0', 600: '#7B4F9E' },
+  green: { 300: '#86CFA0', 600: '#2E7A4C' },
 } as const;
 
 const light = {
@@ -64,6 +65,7 @@ const light = {
   protein: palette.sky[600],
   carbs: palette.gold[600],
   fat: palette.plum[600],
+  fiber: palette.green[600],
 };
 
 type ColorTokens = { [K in keyof typeof light]: string };
@@ -86,6 +88,7 @@ const dark: ColorTokens = {
   protein: palette.sky[300],
   carbs: palette.gold[300],
   fat: palette.plum[300],
+  fiber: palette.green[300],
 };
 
 function componentTokens(c: ColorTokens) {

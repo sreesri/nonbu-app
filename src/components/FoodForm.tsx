@@ -10,7 +10,7 @@ import { spacing } from '@/lib/theme';
 import { DateTimeField } from './DateTimeField';
 import { Button, Chip, ErrorText, Field, Label, Row, Screen } from './ui';
 
-const NUMERIC = ['quantity', 'calories', 'protein_g', 'carbs_g', 'fat_g'] as const;
+const NUMERIC = ['quantity', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'] as const;
 type NumericField = (typeof NUMERIC)[number];
 
 type FormState = {
@@ -47,6 +47,7 @@ function initialState(entry: FoodEntry | undefined, date: string | undefined): F
     protein_g: num(entry?.protein_g),
     carbs_g: num(entry?.carbs_g),
     fat_g: num(entry?.fat_g),
+    fiber_g: num(entry?.fiber_g),
   };
 }
 
@@ -73,6 +74,7 @@ export function FoodForm({ entry, date }: { entry?: FoodEntry; date?: string }) 
       protein_g: r.protein_g == null ? '' : String(r.protein_g),
       carbs_g: r.carbs_g == null ? '' : String(r.carbs_g),
       fat_g: r.fat_g == null ? '' : String(r.fat_g),
+      fiber_g: r.fiber_g == null ? '' : String(r.fiber_g),
     }));
 
   const onSave = () => {
@@ -143,6 +145,10 @@ export function FoodForm({ entry, date }: { entry?: FoodEntry; date?: string }) 
       <Row style={{ alignItems: 'flex-start' }}>
         {numberField('carbs_g', 'Carbs g')}
         {numberField('fat_g', 'Fat g')}
+      </Row>
+      <Row style={{ alignItems: 'flex-start' }}>
+        {numberField('fiber_g', 'Fiber g')}
+        <View style={{ flex: 1 }} />
       </Row>
       <Field label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} multiline />
 
