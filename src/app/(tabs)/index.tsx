@@ -6,7 +6,7 @@ import { RefreshControl, Text, View } from 'react-native';
 import { useCurrentSession, useDailySummary, useMe, useSwitchSession } from '@/api/hooks';
 import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
 import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
-import { formatDuration, todayKey } from '@/lib/format';
+import { formatDuration, formatKcal, todayKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
 import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
@@ -17,7 +17,6 @@ function greeting(hour: number): string {
   return 'Good evening';
 }
 
-const kcal = (n: number) => Math.round(n).toLocaleString();
 const shortDateTime = (ms: number) => format(ms, 'EEE h:mm a');
 
 export default function HomeScreen() {
@@ -133,10 +132,10 @@ export default function HomeScreen() {
               <>
                 <Text style={{ color: t.text, fontVariant: ['tabular-nums'] }}>
                   <Text style={{ fontSize: 32, fontWeight: '700', color: over ? t.danger : t.text }}>
-                    {kcal(eaten)}
+                    {formatKcal(eaten)}
                   </Text>
                   <Text style={{ fontSize: 18, color: t.textMuted }}>
-                    {goal ? ` / ${kcal(goal)}` : ''} kcal
+                    {goal ? ` / ${formatKcal(goal)}` : ''} kcal
                   </Text>
                 </Text>
                 <AnimatedProgressBar progress={goal ? eaten / goal : 0} color={over ? t.progress.over : t.progress.fill} />
@@ -144,8 +143,8 @@ export default function HomeScreen() {
                   {goal == null
                     ? 'Set a daily calorie goal in Settings'
                     : over
-                      ? `${kcal(eaten - goal)} kcal over target`
-                      : `${kcal(goal - eaten)} kcal left`}
+                      ? `${formatKcal(eaten - goal)} kcal over target`
+                      : `${formatKcal(goal - eaten)} kcal left`}
                 </Body>
               </>
             );

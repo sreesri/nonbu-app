@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { Loading } from '@/components/ui';
 import { useTheme } from '@/lib/theme';
+import { WidgetSync } from '@/widget/WidgetSync';
 
 // Refetch when the app returns to the foreground.
 AppState.addEventListener('change', (state) => focusManager.setFocused(state === 'active'));
@@ -31,25 +32,28 @@ function RootNavigator() {
   // If /me fails (e.g. offline) fall through to the tabs; the gate re-applies once it loads.
   const onboarding = signedIn && me.data?.onboarded_at === null;
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: t.header.bg },
-        headerTintColor: t.header.fg,
-        contentStyle: { backgroundColor: t.background },
-      }}
-    >
-      <Stack.Protected guard={onboarding}>
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn && !onboarding}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="food/new" options={{ title: 'Add food', presentation: 'modal' }} />
-        <Stack.Screen name="food/[id]" options={{ title: 'Edit food', presentation: 'modal' }} />
-      </Stack.Protected>
-      <Stack.Protected guard={!signedIn}>
-        <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
-      </Stack.Protected>
-    </Stack>
+    <>
+      {signedIn ? <WidgetSync /> : null}
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: t.header.bg },
+          headerTintColor: t.header.fg,
+          contentStyle: { backgroundColor: t.background },
+        }}
+      >
+        <Stack.Protected guard={onboarding}>
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn && !onboarding}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="food/new" options={{ title: 'Add food', presentation: 'modal' }} />
+          <Stack.Screen name="food/[id]" options={{ title: 'Edit food', presentation: 'modal' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
+        </Stack.Protected>
+      </Stack>
+    </>
   );
 }
 

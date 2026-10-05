@@ -11,6 +11,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, setSessionExpiredHandler, storeTokenPair } from '@/api/client';
 import type { TokenPair, User } from '@/api/types';
 import { GOOGLE_WEB_CLIENT_ID } from '@/lib/config';
+import { pushWidget } from '@/widget/sync';
 import { clearTokens, loadTokens } from './tokens';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -29,6 +30,11 @@ export function deviceTimezone(): string {
   return getCalendars()[0]?.timeZone ?? 'UTC';
 }
 
+/** Switch the home-screen widget to its signed-out state (best-effort, like sign-out itself). */
+function clearWidget() {
+  pushWidget(null).catch(() => {});
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const qc = useQueryClient();
@@ -37,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadTokens().then((tokens) => setStatus(tokens ? 'signedIn' : 'signedOut'));
     setSessionExpiredHandler(() => {
       qc.clear();
+      clearWidget();
       setStatus('signedOut');
     });
     return () => setSessionExpiredHandler(null);
@@ -80,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await clearTokens();
     await GoogleSignin.signOut().catch(() => {});
     qc.clear();
+    clearWidget();
     setStatus('signedOut');
   }, [qc]);
 

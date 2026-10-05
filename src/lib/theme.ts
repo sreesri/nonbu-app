@@ -125,7 +125,8 @@ function buildTheme(colors: ColorTokens) {
   return { ...colors, ...componentTokens(colors) };
 }
 
-const themes = { light: buildTheme(light), dark: buildTheme(dark) };
+/** Both schemes, for code that renders outside React (the home-screen widget). */
+export const themes = { light: buildTheme(light), dark: buildTheme(dark) };
 
 export type Theme = ReturnType<typeof buildTheme>;
 

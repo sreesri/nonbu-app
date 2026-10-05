@@ -63,6 +63,24 @@
             "backgroundColor": "#000F18"
           }
         }
+      ],
+      [
+        "./plugins/withNonbuWidget",
+        {
+          "widgets": [
+            {
+              "name": "NonbuWidget",
+              "label": "Nonbu",
+              "description": "Fasting timer and today's calories",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
       ]
     ],
     "scheme": "nonbu",

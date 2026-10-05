@@ -29,6 +29,12 @@ export function formatDuration(ms: number): string {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+/** Milliseconds → "H h MM m", truncated to the minute. */
+export function formatElapsed(ms: number): string {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
+  return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
+}
+
 export function formatHours(hours: number): string {
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);
@@ -41,6 +47,11 @@ export function formatTime(iso: string): string {
 
 export function formatDateTime(iso: string): string {
   return format(parseISO(iso), 'EEE d MMM, h:mm a');
+}
+
+/** Calories rounded, with thousands separators. */
+export function formatKcal(n: number): string {
+  return Math.round(n).toLocaleString();
 }
 
 export function round(n: number | null | undefined): string {
