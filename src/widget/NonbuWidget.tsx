@@ -75,16 +75,18 @@ function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']
     );
   }
   const isFast = session.kind === 'fast';
-  const startedAt = new Date(session.started_at).getTime();
-  const progress = (now - startedAt) / (session.target_hours * 3600_000);
-  const over = progress >= 1;
+  const startMs = new Date(session.started_at).getTime();
+  const totalMs = session.target_hours * 3600_000;
+  const endMs = startMs + totalMs;
+  // The minute tick flips this, so the clock switches from countdown to "+" overtime within a minute.
+  const over = now >= endMs;
   const detail = isFast
     ? over
       ? `${session.target_hours}h goal reached`
-      : `of ${session.target_hours}h fast`
+      : `left of ${session.target_hours}h fast`
     : over
       ? 'Window closed'
-      : `of ${session.target_hours}h window`;
+      : `left of ${session.target_hours}h window`;
   const barColor = isFast ? t.fasting : t.eating;
   return (
     <Column
@@ -92,12 +94,14 @@ function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']
       labelColor={barColor}
       value={
         <ChronometerWidget
-          startedAt={startedAt}
+          base={endMs}
+          countDown={!over}
+          prefix={over ? '+' : ''}
           style={{ fontSize: VALUE_SIZE, color: color(over && !isFast ? t.danger : t.text) }}
         />
       }
       detail={detail}
-      progress={progress}
+      progress={(now - startMs) / totalMs}
       barColor={barColor}
       t={t}
     />

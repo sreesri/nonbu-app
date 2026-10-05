@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
-index 5650d1e..cbee85a 100644
+index 5650d1e..6b6d9d6 100644
 --- a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
 +++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/RNWidget.java
 @@ -10,6 +10,7 @@ import android.graphics.Rect;
@@ -42,7 +42,7 @@ index 5650d1e..cbee85a 100644
  
              List<CollectionView> collectionViews = widgetWithViews.getCollectionViews();
              for (int i = 0; i < Math.min(collectionViews.size(), RNWidgetCollectionService.MAX_COLLECTION_WIDGETS); i++) {
-@@ -151,6 +156,27 @@ public class RNWidget {
+@@ -151,6 +156,30 @@ public class RNWidget {
          return RNWidgetImageProvider.getImageUri(appContext, fileName);
      }
  
@@ -61,8 +61,11 @@ index 5650d1e..cbee85a 100644
 +            overlay.setTextViewTextSize(R.id.rn_widget_chronometer, TypedValue.COMPLEX_UNIT_SP, chronometer.getFontSize());
 +            overlay.setTextColor(R.id.rn_widget_chronometer, chronometer.getColor());
 +            // Chronometer counts from an elapsedRealtime() base, not wall-clock time.
-+            long base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - chronometer.getStartedAt());
-+            overlay.setChronometer(R.id.rn_widget_chronometer, base, null, true);
++            long base = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - chronometer.getBase());
++            overlay.setChronometer(R.id.rn_widget_chronometer, base, chronometer.getFormat(), true);
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
++                overlay.setChronometerCountDown(R.id.rn_widget_chronometer, chronometer.isCountDown());
++            }
 +            widgetView.addView(containerId, overlay);
 +        }
 +    }
@@ -162,10 +165,10 @@ index 9b9e94e..42731a4 100644
          return rootAccessibilityLabel;
 diff --git a/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/builder/widget/ChronometerWidget.java b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/builder/widget/ChronometerWidget.java
 new file mode 100644
-index 0000000..a041154
+index 0000000..f0a26b8
 --- /dev/null
 +++ b/node_modules/react-native-android-widget/android/src/main/java/com/reactnativeandroidwidget/builder/widget/ChronometerWidget.java
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,57 @@
 +package com.reactnativeandroidwidget.builder.widget;
 +
 +import android.graphics.Color;
@@ -178,8 +181,8 @@ index 0000000..a041154
 +import com.facebook.react.bridge.ReadableMap;
 +
 +/**
-+ * Reserves space for a live H:MM:SS count-up in the widget bitmap. Bitmap content can't tick, so
-+ * RNWidget overlays a real Chronometer at this view's position; this view itself draws nothing.
++ * Reserves space for a live H:MM:SS count-up or countdown in the widget bitmap. Bitmap content
++ * can't tick, so RNWidget overlays a real Chronometer at this view's position; this view itself draws nothing.
 + */
 +public class ChronometerWidget extends BaseWidget<TextView> {
 +    public ChronometerWidget(ReactApplicationContext context, ReadableMap props) {
@@ -194,16 +197,25 @@ index 0000000..a041154
 +    @Override
 +    public void applyProps() {
 +        // Same text, size and weight as the overlay so the reserved space matches it.
-+        long elapsedSeconds = Math.max(0, (System.currentTimeMillis() - getStartedAt()) / 1000);
-+        view.setText(DateUtils.formatElapsedTime(elapsedSeconds));
++        long seconds = Math.abs(System.currentTimeMillis() - getBase()) / 1000;
++        view.setText(String.format(getFormat(), DateUtils.formatElapsedTime(seconds)));
 +        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, getFontSize());
 +        view.setTypeface(Typeface.DEFAULT_BOLD);
 +        view.setTextColor(Color.TRANSPARENT);
 +    }
 +
-+    /** Wall-clock start of the count-up, in epoch milliseconds. */
-+    public long getStartedAt() {
-+        return (long) props.getDouble("startedAt");
++    /** Wall-clock time the chronometer reads zero, in epoch milliseconds. */
++    public long getBase() {
++        return (long) props.getDouble("base");
++    }
++
++    public boolean isCountDown() {
++        return props.hasKey("countDown") && props.getBoolean("countDown");
++    }
++
++    /** Chronometer format string; "%s" is replaced by the H:MM:SS value. */
++    public String getFormat() {
++        return getString("format", "%s");
 +    }
 +
 +    public float getFontSize() {
