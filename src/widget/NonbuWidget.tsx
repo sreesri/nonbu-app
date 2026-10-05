@@ -1,9 +1,11 @@
 'use no memo'; // Widget trees are built by calling these functions directly, outside React.
 
+import type { ReactElement } from 'react';
 import { FlexWidget, TextWidget, type ColorProp, type WidgetRepresentation } from 'react-native-android-widget';
 
-import { formatElapsed, formatKcal, todayKey } from '@/lib/format';
+import { formatKcal, todayKey } from '@/lib/format';
 import { radius, spacing, themes, type Theme } from '@/lib/theme';
+import { ChronometerWidget } from './ChronometerWidget';
 import type { WidgetSnapshot } from './snapshot';
 
 /** Must match the widget `name` in app.json's withNonbuWidget plugin config. */
@@ -12,6 +14,7 @@ export const WIDGET_NAME = 'NonbuWidget';
 const BAR_HEIGHT = 6;
 const LABEL_SIZE = 12;
 const VALUE_SIZE = 24;
+const PLACEHOLDER = '–';
 const DETAIL_SIZE = 12;
 
 /** Theme tokens are all `#hex` or `rgba()` strings, which is what the widget renderer accepts. */
@@ -59,11 +62,21 @@ function NonbuWidget({ snapshot, signedIn, now, t }: Props) {
 
 function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']; now: number; t: Theme }) {
   if (!session) {
-    return <Column label="Fasting" labelColor={t.fasting} value="–" detail="Not started" progress={0} barColor={t.fasting} t={t} />;
+    return (
+      <Column
+        label="Fasting"
+        labelColor={t.fasting}
+        value={<ValueText text={PLACEHOLDER} color={t.text} />}
+        detail="Not started"
+        progress={0}
+        barColor={t.fasting}
+        t={t}
+      />
+    );
   }
   const isFast = session.kind === 'fast';
-  const elapsedMs = now - new Date(session.started_at).getTime();
-  const progress = elapsedMs / (session.target_hours * 3600_000);
+  const startedAt = new Date(session.started_at).getTime();
+  const progress = (now - startedAt) / (session.target_hours * 3600_000);
   const over = progress >= 1;
   const detail = isFast
     ? over
@@ -77,8 +90,12 @@ function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']
     <Column
       label={isFast ? 'Fasting' : 'Eating window'}
       labelColor={barColor}
-      value={formatElapsed(elapsedMs)}
-      valueColor={over && !isFast ? t.danger : t.text}
+      value={
+        <ChronometerWidget
+          startedAt={startedAt}
+          style={{ fontSize: VALUE_SIZE, color: color(over && !isFast ? t.danger : t.text) }}
+        />
+      }
       detail={detail}
       progress={progress}
       barColor={barColor}
@@ -96,8 +113,7 @@ function CaloriesColumn({ snapshot, t }: { snapshot: WidgetSnapshot; t: Theme })
     <Column
       label="Calories"
       labelColor={t.textMuted}
-      value={formatKcal(eaten)}
-      valueColor={over ? t.danger : t.text}
+      value={<ValueText text={formatKcal(eaten)} color={over ? t.danger : t.text} />}
       detail={goal == null ? 'kcal today' : over ? `${formatKcal(eaten - goal)} kcal over` : `of ${formatKcal(goal)} kcal`}
       progress={goal ? eaten / goal : 0}
       barColor={over ? t.progress.over : t.progress.fill}
@@ -109,27 +125,28 @@ function CaloriesColumn({ snapshot, t }: { snapshot: WidgetSnapshot; t: Theme })
 type ColumnProps = {
   label: string;
   labelColor: string;
-  value: string;
-  valueColor?: string;
+  /** The big figure: a {@link ValueText} or a live {@link ChronometerWidget}. */
+  value: ReactElement;
   detail: string;
   progress: number;
   barColor: string;
   t: Theme;
 };
 
-function Column({ label, labelColor, value, valueColor, detail, progress, barColor, t }: ColumnProps) {
+function Column({ label, labelColor, value, detail, progress, barColor, t }: ColumnProps) {
   return (
     <FlexWidget style={{ flex: 1, flexDirection: 'column', flexGap: spacing.xs }}>
       <TextWidget text={label.toUpperCase()} style={{ fontSize: LABEL_SIZE, fontWeight: '600', color: color(labelColor) }} />
-      <TextWidget
-        text={value}
-        maxLines={1}
-        style={{ fontSize: VALUE_SIZE, fontWeight: '700', color: color(valueColor ?? t.text) }}
-      />
+      {value}
       <TextWidget text={detail} maxLines={1} truncate="END" style={{ fontSize: DETAIL_SIZE, color: color(t.textMuted) }} />
       <ProgressBar progress={progress} fill={barColor} track={t.progress.track} />
     </FlexWidget>
   );
+}
+
+// Bold, like the Chronometer overlay, so both kinds of value match.
+function ValueText({ text, color: textColor }: { text: string; color: string }) {
+  return <TextWidget text={text} maxLines={1} style={{ fontSize: VALUE_SIZE, fontWeight: 'bold', color: color(textColor) }} />;
 }
 
 function ProgressBar({ progress, fill, track }: { progress: number; fill: string; track: string }) {

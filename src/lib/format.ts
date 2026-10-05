@@ -29,12 +29,6 @@ export function formatDuration(ms: number): string {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-/** Milliseconds → "H h MM m", truncated to the minute. */
-export function formatElapsed(ms: number): string {
-  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
-  return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
-}
-
 export function formatHours(hours: number): string {
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);
