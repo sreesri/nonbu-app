@@ -60,6 +60,7 @@ const light = {
   accentText: palette.white,
   danger: palette.red[600],
   highlight: 'rgba(255,255,255,0.35)',
+  scrim: 'rgba(0,22,36,0.5)',
   fasting: palette.navy[800],
   eating: palette.orange[600],
   protein: palette.sky[600],
@@ -83,6 +84,7 @@ const dark: ColorTokens = {
   accentText: palette.navy[950],
   danger: palette.red[400],
   highlight: 'rgba(255,255,255,0.25)',
+  scrim: 'rgba(0,0,0,0.6)',
   fasting: palette.navy[300],
   eating: palette.orange[400],
   protein: palette.sky[300],
@@ -113,6 +115,8 @@ function componentTokens(c: ColorTokens) {
     progress: { track: c.surfaceMuted, fill: c.primary, over: c.danger, shimmer: c.highlight },
     chart: { goalLine: c.textMuted, label: c.textMuted, over: c.danger },
     banner: { bg: c.primary, fg: c.primaryText },
+    sheet: { bg: c.surface, handle: c.border, scrim: c.scrim },
+    wheel: { bg: c.surfaceMuted, band: c.surface, bandBorder: c.border, selected: c.primary, item: c.text, faded: c.textMuted },
     spinner: c.primary,
   };
 }

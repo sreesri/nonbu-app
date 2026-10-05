@@ -4,10 +4,10 @@ import { Alert, RefreshControl, Text, View } from 'react-native';
 
 import { useCurrentSession, useMe, useSessions, useSwitchSession, useUpdateSession } from '@/api/hooks';
 import type { Session } from '@/api/types';
-import { DateTimeField } from '@/components/DateTimeField';
+import { DateTimeSheet } from '@/components/DateTimeSheet';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Body, Button, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
-import { formatDateTime, formatDuration, formatHours, shiftDateKey, todayKey } from '@/lib/format';
+import { formatDateTime, formatDuration, formatHours, formatTime, shiftDateKey, todayKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
 import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
@@ -43,27 +43,62 @@ function SessionTimer({ session, now }: { session: Session; now: number }) {
           {formatDateTime(new Date(startedMs + goalMs).toISOString())}
         </Body>
       </View>
-      {editingStart ? (
-        <View style={{ alignSelf: 'stretch' }}>
-          <DateTimeField
-            label="Started at"
-            value={new Date(session.started_at)}
-            maximumDate={new Date()}
-            onChange={(d) => {
-              setEditingStart(false);
-              update.mutate({ id: session.id, started_at: d.toISOString() });
-            }}
-          />
-        </View>
-      ) : null}
       <Button
-        title={editingStart ? 'Cancel' : 'Edit start'}
+        title="Edit start"
         variant="secondary"
-        onPress={() => setEditingStart((v) => !v)}
+        onPress={() => {
+          update.reset();
+          setEditingStart(true);
+        }}
         style={{ alignSelf: 'stretch' }}
       />
-      <ErrorText error={update.error} />
+      <DateTimeSheet
+        visible={editingStart}
+        title={isFast ? 'Fast started' : 'Eating started'}
+        subtitle="Set it to when this actually began."
+        value={new Date(session.started_at)}
+        maximumDate={new Date(now)}
+        describe={(start) => (
+          <SessionPreview isFast={isFast} startMs={start.getTime()} targetHours={session.target_hours} now={now} />
+        )}
+        saving={update.isPending}
+        error={update.error}
+        onCancel={() => setEditingStart(false)}
+        onSave={(start) =>
+          update.mutate(
+            { id: session.id, started_at: start.toISOString() },
+            { onSuccess: () => setEditingStart(false) },
+          )
+        }
+      />
     </View>
+  );
+}
+
+/** "Fasted 14h 25m · 16h goal 12:15 PM" for a session that would start at `startMs`. */
+function SessionPreview({
+  isFast,
+  startMs,
+  targetHours,
+  now,
+}: {
+  isFast: boolean;
+  startMs: number;
+  targetHours: number;
+  now: number;
+}) {
+  const elapsedH = Math.max(now - startMs, 0) / 3600_000;
+  const dueAt = new Date(startMs + targetHours * 3600_000).toISOString();
+  return (
+    <Row style={{ justifyContent: 'space-between' }}>
+      <Body muted>
+        {isFast ? 'Fasted' : 'Eating'} <Body style={{ fontWeight: '600' }}>{formatHours(elapsedH)}</Body>
+      </Body>
+      <Body muted>
+        {isFast ? `${formatHours(targetHours)} goal` : 'Closes'}{' '}
+        <Body style={{ fontWeight: '600' }}>{formatTime(dueAt)}</Body>
+      </Body>
+    </Row>
   );
 }
 

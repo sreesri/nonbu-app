@@ -141,6 +141,7 @@ export default function OnboardingScreen() {
             key={situation}
             label={chosen.timeLabel}
             value={times[situation]}
+            minimumDate={situation === 'later' ? new Date(now) : undefined}
             maximumDate={situation === 'later' ? undefined : new Date(now)}
             onChange={(d) => setTimes((prev) => ({ ...prev, [situation]: d }))}
           />

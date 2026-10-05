@@ -1,47 +1,37 @@
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { DateTimeSheet } from './DateTimeSheet';
 import { Label } from './ui';
 
-/** Tappable date + time value; Android shows the date dialog, then the time dialog. */
+/** Tappable date + time value; opens the wheel sheet and reports the value only on Save. */
 export function DateTimeField({
   label,
   value,
   onChange,
+  minimumDate,
   maximumDate,
+  describe,
 }: {
   label: string;
   value: Date;
   onChange: (date: Date) => void;
+  minimumDate?: Date;
   maximumDate?: Date;
+  describe?: (date: Date) => ReactNode;
 }) {
   const t = useTheme();
-  const [mode, setMode] = useState<'date' | 'time' | null>(null);
-
-  const handle = (event: DateTimePickerEvent, picked?: Date) => {
-    const current = mode;
-    setMode(null);
-    if (event.type !== 'set' || !picked) return;
-    if (current === 'date') {
-      const next = new Date(value);
-      next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
-      onChange(next);
-      setMode('time');
-    } else {
-      const next = new Date(value);
-      next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-      onChange(next);
-    }
-  };
+  const [open, setOpen] = useState(false);
 
   return (
     <View style={{ gap: spacing.xs }}>
       <Label muted>{label}</Label>
       <Pressable
-        onPress={() => setMode('date')}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${format(value, 'EEEE d MMMM, h:mm a')}`}
+        onPress={() => setOpen(true)}
         style={{
           borderWidth: 1,
           borderColor: t.input.border,
@@ -52,9 +42,19 @@ export function DateTimeField({
       >
         <Text style={{ color: t.input.fg, fontSize: 16 }}>{format(value, 'EEE d MMM yyyy, h:mm a')}</Text>
       </Pressable>
-      {mode && (
-        <DateTimePicker value={value} mode={mode} onChange={handle} maximumDate={mode === 'date' ? maximumDate : undefined} />
-      )}
+      <DateTimeSheet
+        visible={open}
+        title={label}
+        value={value}
+        minimumDate={minimumDate}
+        maximumDate={maximumDate}
+        describe={describe}
+        onCancel={() => setOpen(false)}
+        onSave={(date) => {
+          setOpen(false);
+          onChange(date);
+        }}
+      />
     </View>
   );
 }
