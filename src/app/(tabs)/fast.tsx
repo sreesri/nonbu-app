@@ -14,6 +14,8 @@ import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
 
 const TARGETS = [12, 14, 16, 18, 20, 24, 36];
+/** The server requires a switch to be strictly after the current session's start. */
+const MIN_SWITCH_GAP_MS = 60_000;
 
 function SessionTimer({ session, now }: { session: Session; now: number }) {
   const t = useTheme();
@@ -107,23 +109,26 @@ export default function FastScreen() {
   const switchSession = useSwitchSession();
 
   const [target, setTarget] = useState<number | null>(null);
+  const [pickingTime, setPickingTime] = useState(false);
 
   const session = current.data;
   const fasting = session?.kind === 'fast';
   const selectedTarget = target ?? me.data?.goals.default_fast_hours ?? DEFAULT_FAST_HOURS;
 
-  const onStart = () => {
+  const onStart = (at?: Date) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    switchSession.mutate({ kind: 'fast', target_hours: selectedTarget });
+    switchSession.mutate({ kind: 'fast', target_hours: selectedTarget, at: at?.toISOString() });
+  };
+
+  const finishFast = (at?: Date) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    switchSession.mutate({ kind: 'eat', at: at?.toISOString() });
   };
 
   const onEnd = () => {
     if (!session) return;
     const elapsedH = (now - new Date(session.started_at).getTime()) / 3600_000;
-    const finish = () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      switchSession.mutate({ kind: 'eat' });
-    };
+    const finish = () => finishFast();
     if (elapsedH < session.target_hours) {
       Alert.alert('End fast early?', `You're at ${formatHours(elapsedH)} of ${session.target_hours}h.`, [
         { text: 'Keep going', style: 'cancel' },
@@ -152,7 +157,10 @@ export default function FastScreen() {
         <Card style={{ gap: spacing.lg }}>
           {session ? <SessionTimer key={session.id} session={session} now={now} /> : null}
           {fasting ? (
-            <Button title="End fast" onPress={onEnd} />
+            <Row>
+              <Button title="End fast" onPress={onEnd} style={{ flex: 2 }} />
+              <Button title="Pick time" variant="secondary" onPress={() => setPickingTime(true)} style={{ flex: 1 }} />
+            </Row>
           ) : (
             <>
               <View style={{ gap: spacing.sm }}>
@@ -163,9 +171,43 @@ export default function FastScreen() {
                   ))}
                 </Row>
               </View>
-              <Button title={`Start ${selectedTarget}h fast`} onPress={onStart} />
+              <Row>
+                <Button title={`Start ${selectedTarget}h fast`} onPress={() => onStart()} style={{ flex: 2 }} />
+                <Button
+                  title="Pick time"
+                  variant="secondary"
+                  onPress={() => setPickingTime(true)}
+                  style={{ flex: 1 }}
+                />
+              </Row>
             </>
           )}
+          <DateTimeSheet
+            visible={pickingTime}
+            title={fasting ? 'Fast ended' : 'Fast started'}
+            subtitle={fasting ? 'When did you break your fast?' : 'When did you start fasting?'}
+            value={new Date(now)}
+            minimumDate={session ? new Date(new Date(session.started_at).getTime() + MIN_SWITCH_GAP_MS) : undefined}
+            maximumDate={new Date(now)}
+            describe={(at) =>
+              fasting && session ? (
+                <SessionPreview
+                  isFast
+                  startMs={new Date(session.started_at).getTime()}
+                  targetHours={session.target_hours}
+                  now={at.getTime()}
+                />
+              ) : (
+                <SessionPreview isFast startMs={at.getTime()} targetHours={selectedTarget} now={now} />
+              )
+            }
+            onCancel={() => setPickingTime(false)}
+            onSave={(at) => {
+              setPickingTime(false);
+              if (fasting) finishFast(at);
+              else onStart(at);
+            }}
+          />
         </Card>
       )}
 
