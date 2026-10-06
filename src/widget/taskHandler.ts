@@ -25,18 +25,18 @@ function refreshSnapshot(): Promise<WidgetSnapshot | null> {
  * Runs headless on every widget event, including the once-a-minute tick from
  * plugins/withNonbuWidget.js. Renders from cache right away, then refetches if it's stale.
  */
-export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetAction, renderWidget }) => {
+export const widgetTaskHandler: WidgetTaskHandler = async ({ widgetAction, widgetInfo, renderWidget }) => {
   if (widgetAction === 'WIDGET_DELETED' || widgetAction === 'WIDGET_CLICK') return;
 
   if (!(await loadTokens())) {
-    renderWidget(renderNonbuWidget(null, false));
+    renderWidget(renderNonbuWidget(null, false, widgetInfo));
     return;
   }
   // A corrupt cache entry is treated as missing; the refetch below overwrites it.
   const cached = await loadSnapshot().catch(() => null);
-  renderWidget(renderNonbuWidget(cached, true));
+  renderWidget(renderNonbuWidget(cached, true, widgetInfo));
   if (cached && !isStale(cached, Date.now())) return;
 
   const fresh = await refreshSnapshot();
-  if (fresh) renderWidget(renderNonbuWidget(fresh, true));
+  if (fresh) renderWidget(renderNonbuWidget(fresh, true, widgetInfo));
 };

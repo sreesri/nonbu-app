@@ -11,27 +11,86 @@ import type { WidgetSnapshot } from './snapshot';
 /** Must match the widget `name` in app.json's withNonbuWidget plugin config. */
 export const WIDGET_NAME = 'NonbuWidget';
 
-const BAR_HEIGHT = 6;
-const LABEL_SIZE = 12;
-const VALUE_SIZE = 24;
 const PLACEHOLDER = '–';
-const DETAIL_SIZE = 12;
+const PADDING = spacing.lg;
+const SECTION_GAP = spacing.lg;
+
+// Rough text metrics for fitting the big value to the space the widget actually has.
+/** Rendered line height relative to font size. */
+const LINE_HEIGHT = 1.3;
+/** Label and detail text size relative to the big value. */
+const SMALL_RATIO = 0.42;
+/** Width of a bold "+HH:MM:SS" in ems: the widest value either section shows. */
+const VALUE_EMS = 5.5;
+const MIN_VALUE_SIZE = 18;
+const MAX_VALUE_SIZE = 44;
+const MIN_SMALL_SIZE = 11;
+const MIN_BAR_HEIGHT = 6;
+const MAX_BAR_HEIGHT = 12;
+/** Progress bar segments are sized by integer layout weights; this sets their resolution. */
+const BAR_RESOLUTION = 1000;
 
 /** Theme tokens are all `#hex` or `rgba()` strings, which is what the widget renderer accepts. */
 const color = (token: string) => token as ColorProp;
 
-type Props = { snapshot: WidgetSnapshot | null; signedIn: boolean; now: number; t: Theme };
+const clamp = (n: number, min: number, max: number) => Math.min(Math.max(n, min), max);
 
-/** The widget in both color schemes; Android picks one from the system setting. */
-export function renderNonbuWidget(snapshot: WidgetSnapshot | null, signedIn: boolean): WidgetRepresentation {
-  const now = Date.now();
+/** Widget size in dp, as reported by the launcher. */
+export type WidgetSize = { width: number; height: number };
+
+/**
+ * `columns`: fasting and calories side by side (short widgets).
+ * `rows`: stacked at full width, which lets the numbers grow on taller widgets.
+ */
+type Layout = 'columns' | 'rows';
+
+type Metrics = { layout: Layout; value: number; small: number; bar: number };
+
+/** Heights of each section's lines, as multiples of the value font size, plus fixed gaps. */
+const STACK_EMS = { columns: 2 * SMALL_RATIO * LINE_HEIGHT + LINE_HEIGHT + 0.25, rows: SMALL_RATIO * LINE_HEIGHT + LINE_HEIGHT + 0.25 };
+const STACK_GAPS = { columns: 3 * spacing.xs, rows: 2 * spacing.xs };
+
+function valueSizeFor(layout: Layout, { width, height }: WidgetSize): number {
+  const innerWidth = width - 2 * PADDING;
+  const innerHeight = height - 2 * PADDING;
+  const box =
+    layout === 'columns'
+      ? { width: (innerWidth - SECTION_GAP) / 2, height: innerHeight }
+      : { width: innerWidth, height: (innerHeight - SECTION_GAP) / 2 };
+  return Math.min(box.width / VALUE_EMS, (box.height - STACK_GAPS[layout]) / STACK_EMS[layout]);
+}
+
+/** Picks whichever layout fits the biggest numbers into this widget's size. */
+function metricsFor(size: WidgetSize): Metrics {
+  const columns = valueSizeFor('columns', size);
+  const rows = valueSizeFor('rows', size);
+  const layout: Layout = rows > columns ? 'rows' : 'columns';
+  const value = clamp(Math.floor(Math.max(columns, rows)), MIN_VALUE_SIZE, MAX_VALUE_SIZE);
   return {
-    light: <NonbuWidget snapshot={snapshot} signedIn={signedIn} now={now} t={themes.light} />,
-    dark: <NonbuWidget snapshot={snapshot} signedIn={signedIn} now={now} t={themes.dark} />,
+    layout,
+    value,
+    small: Math.max(Math.round(value * SMALL_RATIO), MIN_SMALL_SIZE),
+    bar: clamp(Math.round(value / 4), MIN_BAR_HEIGHT, MAX_BAR_HEIGHT),
   };
 }
 
-function NonbuWidget({ snapshot, signedIn, now, t }: Props) {
+type Props = { snapshot: WidgetSnapshot | null; signedIn: boolean; now: number; m: Metrics; t: Theme };
+
+/** The widget in both color schemes, sized for `size`; Android picks a scheme from the system setting. */
+export function renderNonbuWidget(
+  snapshot: WidgetSnapshot | null,
+  signedIn: boolean,
+  size: WidgetSize,
+): WidgetRepresentation {
+  const now = Date.now();
+  const m = metricsFor(size);
+  return {
+    light: <NonbuWidget snapshot={snapshot} signedIn={signedIn} now={now} m={m} t={themes.light} />,
+    dark: <NonbuWidget snapshot={snapshot} signedIn={signedIn} now={now} m={m} t={themes.dark} />,
+  };
+}
+
+function NonbuWidget({ snapshot, signedIn, now, m, t }: Props) {
   return (
     <FlexWidget
       clickAction="OPEN_APP"
@@ -39,37 +98,39 @@ function NonbuWidget({ snapshot, signedIn, now, t }: Props) {
       style={{
         width: 'match_parent',
         height: 'match_parent',
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexGap: spacing.lg,
-        padding: spacing.lg,
+        flexDirection: m.layout === 'columns' ? 'row' : 'column',
+        flexGap: SECTION_GAP,
+        padding: PADDING,
         borderRadius: radius.lg,
         backgroundColor: color(t.surface),
       }}
     >
       {/* The widget renderer doesn't support fragments, hence one condition per child. */}
-      {snapshot ? <SessionColumn session={snapshot.session} now={now} t={t} /> : null}
-      {snapshot ? <CaloriesColumn snapshot={snapshot} t={t} /> : null}
+      {snapshot ? <SessionSection session={snapshot.session} now={now} m={m} t={t} /> : null}
+      {snapshot ? <CaloriesSection snapshot={snapshot} m={m} t={t} /> : null}
       {snapshot ? null : (
         <TextWidget
           text={signedIn ? 'Tap to open Nonbu and load today' : 'Open Nonbu to sign in'}
-          style={{ fontSize: DETAIL_SIZE, color: color(t.textMuted) }}
+          style={{ fontSize: m.small, color: color(t.textMuted) }}
         />
       )}
     </FlexWidget>
   );
 }
 
-function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']; now: number; t: Theme }) {
+type SectionProps = { m: Metrics; t: Theme };
+
+function SessionSection({ session, now, m, t }: SectionProps & { session: WidgetSnapshot['session']; now: number }) {
   if (!session) {
     return (
-      <Column
+      <Section
         label="Fasting"
         labelColor={t.fasting}
-        value={<ValueText text={PLACEHOLDER} color={t.text} />}
+        value={<ValueText text={PLACEHOLDER} color={t.text} m={m} />}
         detail="Not started"
         progress={0}
         barColor={t.fasting}
+        m={m}
         t={t}
       />
     );
@@ -89,7 +150,7 @@ function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']
       : `left of ${session.target_hours}h window`;
   const barColor = isFast ? t.fasting : t.eating;
   return (
-    <Column
+    <Section
       label={isFast ? 'Fasting' : 'Eating window'}
       labelColor={barColor}
       value={
@@ -97,36 +158,38 @@ function SessionColumn({ session, now, t }: { session: WidgetSnapshot['session']
           base={endMs}
           countDown={!over}
           prefix={over ? '+' : ''}
-          style={{ fontSize: VALUE_SIZE, color: color(over && !isFast ? t.danger : t.text) }}
+          style={{ fontSize: m.value, color: color(over && !isFast ? t.danger : t.text) }}
         />
       }
       detail={detail}
       progress={(now - startMs) / totalMs}
       barColor={barColor}
+      m={m}
       t={t}
     />
   );
 }
 
-function CaloriesColumn({ snapshot, t }: { snapshot: WidgetSnapshot; t: Theme }) {
+function CaloriesSection({ snapshot, m, t }: SectionProps & { snapshot: WidgetSnapshot }) {
   // Nothing logged yet today if the cached totals are from an earlier day.
   const eaten = snapshot.date === todayKey() ? snapshot.calories : 0;
   const goal = snapshot.calorieGoal;
   const over = goal != null && eaten > goal;
   return (
-    <Column
+    <Section
       label="Calories"
       labelColor={t.textMuted}
-      value={<ValueText text={formatKcal(eaten)} color={over ? t.danger : t.text} />}
+      value={<ValueText text={formatKcal(eaten)} color={over ? t.danger : t.text} m={m} />}
       detail={goal == null ? 'kcal today' : over ? `${formatKcal(eaten - goal)} kcal over` : `of ${formatKcal(goal)} kcal`}
       progress={goal ? eaten / goal : 0}
       barColor={over ? t.progress.over : t.progress.fill}
+      m={m}
       t={t}
     />
   );
 }
 
-type ColumnProps = {
+type SectionContentProps = SectionProps & {
   label: string;
   labelColor: string;
   /** The big figure: a {@link ValueText} or a live {@link ChronometerWidget}. */
@@ -134,43 +197,73 @@ type ColumnProps = {
   detail: string;
   progress: number;
   barColor: string;
-  t: Theme;
 };
 
-function Column({ label, labelColor, value, detail, progress, barColor, t }: ColumnProps) {
+/**
+ * One stat, spread over its share of the widget: label and value at the top, progress at the
+ * bottom. Side by side the detail sits above the bar; stacked it shares the label's line.
+ */
+function Section({ label, labelColor, value, detail, progress, barColor, m, t }: SectionContentProps) {
+  const labelText = (
+    <TextWidget text={label.toUpperCase()} style={{ fontSize: m.small, fontWeight: '600', color: color(labelColor) }} />
+  );
+  const detailText = (
+    <TextWidget text={detail} maxLines={1} truncate="END" style={{ fontSize: m.small, color: color(t.textMuted) }} />
+  );
+  const bar = <ProgressBar progress={progress} fill={barColor} track={t.progress.track} height={m.bar} />;
+  // Zero size plus an equal weight gives the two sections exactly half the space each.
+  const share = m.layout === 'columns' ? { width: 0, height: 'match_parent' as const } : { width: 'match_parent' as const, height: 0 };
+
+  if (m.layout === 'columns') {
+    return (
+      <FlexWidget style={{ ...share, flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+        <FlexWidget style={{ flexDirection: 'column', flexGap: spacing.xs }}>
+          {labelText}
+          {value}
+        </FlexWidget>
+        <FlexWidget style={{ width: 'match_parent', flexDirection: 'column', flexGap: spacing.xs }}>
+          {detailText}
+          {bar}
+        </FlexWidget>
+      </FlexWidget>
+    );
+  }
   return (
-    <FlexWidget style={{ flex: 1, flexDirection: 'column', flexGap: spacing.xs }}>
-      <TextWidget text={label.toUpperCase()} style={{ fontSize: LABEL_SIZE, fontWeight: '600', color: color(labelColor) }} />
+    <FlexWidget style={{ ...share, flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+      <FlexWidget style={{ width: 'match_parent', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        {labelText}
+        {detailText}
+      </FlexWidget>
       {value}
-      <TextWidget text={detail} maxLines={1} truncate="END" style={{ fontSize: DETAIL_SIZE, color: color(t.textMuted) }} />
-      <ProgressBar progress={progress} fill={barColor} track={t.progress.track} />
+      {bar}
     </FlexWidget>
   );
 }
 
 // Bold, like the Chronometer overlay, so both kinds of value match.
-function ValueText({ text, color: textColor }: { text: string; color: string }) {
-  return <TextWidget text={text} maxLines={1} style={{ fontSize: VALUE_SIZE, fontWeight: 'bold', color: color(textColor) }} />;
+function ValueText({ text, color: textColor, m }: { text: string; color: string; m: Metrics }) {
+  return <TextWidget text={text} maxLines={1} style={{ fontSize: m.value, fontWeight: 'bold', color: color(textColor) }} />;
 }
 
-function ProgressBar({ progress, fill, track }: { progress: number; fill: string; track: string }) {
-  const filled = Math.min(Math.max(progress, 0), 1);
+function ProgressBar({ progress, fill, track, height }: { progress: number; fill: string; track: string; height: number }) {
+  // Layout weights are integers natively (fractions truncate to 0), so split a fixed resolution.
+  const filled = Math.round(clamp(progress, 0, 1) * BAR_RESOLUTION);
   return (
     <FlexWidget
       style={{
         width: 'match_parent',
-        height: BAR_HEIGHT,
+        height,
         flexDirection: 'row',
-        borderRadius: BAR_HEIGHT / 2,
+        borderRadius: height / 2,
         backgroundColor: color(track),
       }}
     >
       {filled > 0 ? (
         <FlexWidget
-          style={{ flex: filled, height: 'match_parent', borderRadius: BAR_HEIGHT / 2, backgroundColor: color(fill) }}
+          style={{ width: 0, flex: filled, height: 'match_parent', borderRadius: height / 2, backgroundColor: color(fill) }}
         />
       ) : null}
-      {filled < 1 ? <FlexWidget style={{ flex: 1 - filled, height: 'match_parent' }} /> : null}
+      {filled < BAR_RESOLUTION ? <FlexWidget style={{ width: 0, flex: BAR_RESOLUTION - filled, height: 'match_parent' }} /> : null}
     </FlexWidget>
   );
 }

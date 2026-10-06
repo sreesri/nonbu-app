@@ -13,6 +13,6 @@ export async function pushWidget(snapshot: WidgetSnapshot | null): Promise<void>
   await (snapshot ? saveSnapshot(snapshot) : clearSnapshot());
   await requestWidgetUpdate({
     widgetName: WIDGET_NAME,
-    renderWidget: () => renderNonbuWidget(snapshot, snapshot !== null),
+    renderWidget: (widgetInfo) => renderNonbuWidget(snapshot, snapshot !== null, widgetInfo),
   });
 }
