@@ -117,7 +117,7 @@ export default function HomeScreen() {
         {phase?.kind === 'fast' ? (
           <Button title="Open timer" variant="secondary" onPress={() => router.navigate('/fast')} />
         ) : current.isSuccess ? (
-          <Button title={`Start ${defaultTarget}h fast`} onPress={onStart} loading={start.isPending} />
+          <Button title={`Start ${defaultTarget}h fast`} onPress={onStart} />
         ) : null}
       </Card>
 
@@ -167,7 +167,7 @@ export default function HomeScreen() {
         </Row>
       </Card>
 
-      <ErrorText error={me.error ?? current.error ?? summary.error ?? start.error} />
+      <ErrorText error={me.error ?? current.error ?? summary.error} />
     </Screen>
   );
 }

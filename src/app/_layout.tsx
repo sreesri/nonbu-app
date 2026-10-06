@@ -1,12 +1,14 @@
-import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
 import { AppState, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useMe } from '@/api/hooks';
+import { persistOptions, queryClient, resumeQueuedWrites } from '@/api/queryClient';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { Loading } from '@/components/ui';
 import { useTheme } from '@/lib/theme';
@@ -58,18 +60,17 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  const [queryClient] = useState(
-    () => new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } }),
-  );
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
+      {/* Restores the last session's data from disk first, so screens render without waiting on the network. */}
+      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions} onSuccess={resumeQueuedWrites}>
         <AuthProvider>
           <StatusBar style="auto" />
           <RootNavigator />
+          <OfflineBanner />
           <UpdateBanner />
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 }

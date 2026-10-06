@@ -3,11 +3,30 @@ import { useState } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
 
 import { useDailySummary, useFoodDay } from '@/api/hooks';
-import { MEAL_TYPES } from '@/api/types';
+import { MEAL_TYPES, type FoodEntry } from '@/api/types';
+import { isUnsynced } from '@/api/writes';
 import { MacroBar } from '@/components/MacroBar';
 import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
 import { formatDayLabel, formatHours, formatTime, round, shiftDateKey, todayKey } from '@/lib/format';
 import { spacing, useTheme } from '@/lib/theme';
+
+function FoodRow({ entry: e }: { entry: FoodEntry }) {
+  return (
+    <Row style={{ justifyContent: 'space-between', paddingVertical: spacing.xs }}>
+      <View style={{ flex: 1 }}>
+        <Body>
+          {e.name}
+          {e.quantity ? ` · ${e.quantity}${e.unit ? ` ${e.unit}` : ''}` : ''}
+        </Body>
+        <Body muted style={{ fontSize: 13 }}>
+          {isUnsynced(e) ? 'Syncing… · ' : ''}
+          {formatTime(e.eaten_at)} · P {round(e.protein_g)} · C {round(e.carbs_g)} · F {round(e.fat_g)} · Fb {round(e.fiber_g)}
+        </Body>
+      </View>
+      <Body style={{ fontWeight: '600' }}>{round(e.calories)}</Body>
+    </Row>
+  );
+}
 
 export default function FoodScreen() {
   const t = useTheme();
@@ -83,24 +102,18 @@ export default function FoodScreen() {
                 <Label>{meal}</Label>
                 <Label muted>{Math.round(kcal)} kcal</Label>
               </Row>
-              {items.map((e) => (
-                <Link key={e.id} href={{ pathname: '/food/[id]', params: { id: String(e.id) } }} asChild>
-                  <Pressable>
-                    <Row style={{ justifyContent: 'space-between', paddingVertical: spacing.xs }}>
-                      <View style={{ flex: 1 }}>
-                        <Body>
-                          {e.name}
-                          {e.quantity ? ` · ${e.quantity}${e.unit ? ` ${e.unit}` : ''}` : ''}
-                        </Body>
-                        <Body muted style={{ fontSize: 13 }}>
-                          {formatTime(e.eaten_at)} · P {round(e.protein_g)} · C {round(e.carbs_g)} · F {round(e.fat_g)} · Fb {round(e.fiber_g)}
-                        </Body>
-                      </View>
-                      <Body style={{ fontWeight: '600' }}>{round(e.calories)}</Body>
-                    </Row>
-                  </Pressable>
-                </Link>
-              ))}
+              {items.map((e) =>
+                // Entries logged offline can't be opened until the server has given them an id.
+                isUnsynced(e) ? (
+                  <FoodRow key={e.id} entry={e} />
+                ) : (
+                  <Link key={e.id} href={{ pathname: '/food/[id]', params: { id: String(e.id) } }} asChild>
+                    <Pressable>
+                      <FoodRow entry={e} />
+                    </Pressable>
+                  </Link>
+                ),
+              )}
             </Card>
           );
         })

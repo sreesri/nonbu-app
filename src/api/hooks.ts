@@ -1,28 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
-import type {
-  DailySummary,
-  FoodEntry,
-  FoodInput,
-  OnboardingInput,
-  Session,
-  SessionKind,
-  SessionSwitch,
-  User,
-  UserPatch,
-} from './types';
+import { keys } from './keys';
+import type { DailySummary, FoodEntry, OnboardingInput, Session, SessionKind, SessionSwitch, User, UserPatch } from './types';
+import { writeKeys, type SaveFoodVars, type SessionPatchVars, type SwitchVars } from './writes';
 
-export const keys = {
-  me: ['me'] as const,
-  currentSession: ['sessions', 'current'] as const,
-  sessions: (from: string, to: string, kind?: SessionKind) => ['sessions', 'list', from, to, kind] as const,
-  food: (date: string) => ['food', 'day', date] as const,
-  foodEntry: (id: number) => ['food', 'entry', id] as const,
-  recentFood: ['food', 'recent'] as const,
-  daily: (date: string) => ['summary', 'daily', date] as const,
-  range: (from: string, to: string) => ['summary', 'range', from, to] as const,
-};
+// Write hooks below only name a queued write; its request and optimistic update live in
+// ./writes.ts. Writes apply to the cache immediately, so screens shouldn't wait on them.
 
 // --- user ---------------------------------------------------------------
 
@@ -31,19 +15,14 @@ export function useMe(enabled = true) {
 }
 
 export function useUpdateMe() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (patch: UserPatch) => api<User>('/me', { method: 'PATCH', body: patch }),
-    onSuccess: (user) => {
-      qc.setQueryData(keys.me, user);
-      qc.invalidateQueries({ queryKey: ['summary'] });
-    },
-  });
+  return useMutation<User, Error, UserPatch>({ mutationKey: writeKeys.updateMe });
 }
 
+/** Not queued: onboarding needs the server's answer before the app can continue. */
 export function useCompleteOnboarding() {
   const qc = useQueryClient();
   return useMutation({
+    networkMode: 'always',
     mutationFn: (body: OnboardingInput) => api<User>('/me/onboarding', { method: 'POST', body }),
     onSuccess: (user) => {
       qc.setQueryData(keys.me, user);
@@ -66,38 +45,22 @@ export function useSessions(from: string, to: string, kind?: SessionKind) {
   });
 }
 
-function useInvalidateSessions() {
-  const qc = useQueryClient();
-  return () => {
-    qc.invalidateQueries({ queryKey: ['sessions'] });
-    qc.invalidateQueries({ queryKey: ['summary'] });
+/** Close the current session and open one of the other kind (start or end a fast). */
+export function useSwitchSession() {
+  const mutation = useMutation<Session, Error, SwitchVars>({ mutationKey: writeKeys.switchSession });
+  return {
+    ...mutation,
+    // Pin the switch time now: a queued write may only reach the server much later.
+    mutate: (body: SessionSwitch) => mutation.mutate({ ...body, at: body.at ?? new Date().toISOString() }),
   };
 }
 
-/** Close the current session and open one of the other kind (start or end a fast). */
-export function useSwitchSession() {
-  const invalidate = useInvalidateSessions();
-  return useMutation({
-    mutationFn: (body: SessionSwitch) => api<Session>('/sessions/switch', { method: 'POST', body }),
-    onSettled: invalidate,
-  });
-}
-
 export function useUpdateSession() {
-  const invalidate = useInvalidateSessions();
-  return useMutation({
-    mutationFn: ({ id, ...patch }: Partial<Omit<Session, 'kind'>> & { id: number }) =>
-      api<Session>(`/sessions/${id}`, { method: 'PATCH', body: patch }),
-    onSettled: invalidate,
-  });
+  return useMutation<Session, Error, SessionPatchVars>({ mutationKey: writeKeys.updateSession });
 }
 
 export function useDeleteSession() {
-  const invalidate = useInvalidateSessions();
-  return useMutation({
-    mutationFn: (id: number) => api<void>(`/sessions/${id}`, { method: 'DELETE' }),
-    onSettled: invalidate,
-  });
+  return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteSession });
 }
 
 // --- food ---------------------------------------------------------------
@@ -110,38 +73,29 @@ export function useFoodDay(date: string) {
 }
 
 export function useFoodEntry(id: number) {
-  return useQuery({ queryKey: keys.foodEntry(id), queryFn: () => api<FoodEntry>(`/food/${id}`) });
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: keys.foodEntry(id),
+    queryFn: () => api<FoodEntry>(`/food/${id}`),
+    // Open instantly (and offline) from the day list the entry was tapped in.
+    placeholderData: () =>
+      qc
+        .getQueriesData<FoodEntry[]>({ queryKey: keys.foodDays })
+        .flatMap(([, list]) => list ?? [])
+        .find((e) => e.id === id),
+  });
 }
 
 export function useRecentFood() {
   return useQuery({ queryKey: keys.recentFood, queryFn: () => api<FoodEntry[]>('/food/recent') });
 }
 
-function useInvalidateFood() {
-  const qc = useQueryClient();
-  return () => {
-    qc.invalidateQueries({ queryKey: ['food'] });
-    qc.invalidateQueries({ queryKey: ['summary'] });
-  };
-}
-
 export function useSaveFood() {
-  const invalidate = useInvalidateFood();
-  return useMutation({
-    mutationFn: ({ id, ...body }: Partial<FoodInput> & { id?: number }) =>
-      id === undefined
-        ? api<FoodEntry>('/food', { method: 'POST', body })
-        : api<FoodEntry>(`/food/${id}`, { method: 'PATCH', body }),
-    onSettled: invalidate,
-  });
+  return useMutation<FoodEntry, Error, SaveFoodVars>({ mutationKey: writeKeys.saveFood });
 }
 
 export function useDeleteFood() {
-  const invalidate = useInvalidateFood();
-  return useMutation({
-    mutationFn: (id: number) => api<void>(`/food/${id}`, { method: 'DELETE' }),
-    onSettled: invalidate,
-  });
+  return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteFood });
 }
 
 // --- summary ------------------------------------------------------------

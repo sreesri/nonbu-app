@@ -8,7 +8,7 @@ import { MEAL_TYPES, type FoodEntry, type MealType } from '@/api/types';
 import { todayKey } from '@/lib/format';
 import { spacing } from '@/lib/theme';
 import { DateTimeField } from './DateTimeField';
-import { Button, Chip, ErrorText, Field, Label, Row, Screen } from './ui';
+import { Button, Chip, Field, Label, Row, Screen } from './ui';
 
 const NUMERIC = ['quantity', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'] as const;
 type NumericField = (typeof NUMERIC)[number];
@@ -89,13 +89,14 @@ export function FoodForm({ entry, date }: { entry?: FoodEntry; date?: string }) 
         notes: form.notes.trim() || null,
         ...Object.fromEntries(NUMERIC.map((k) => [k, parseNumber(form[k])])),
       },
-      { onSuccess: () => router.back() },
     );
+    router.back();
   };
 
   const onDelete = () => {
     if (!entry) return;
-    remove.mutate(entry.id, { onSuccess: () => router.back() });
+    remove.mutate(entry.id);
+    router.back();
   };
 
   const numberField = (key: NumericField, label: string) => (
@@ -152,9 +153,8 @@ export function FoodForm({ entry, date }: { entry?: FoodEntry; date?: string }) 
       </Row>
       <Field label="Notes" value={form.notes} onChangeText={(v) => set('notes', v)} multiline />
 
-      <ErrorText error={save.error ?? remove.error} />
-      <Button title={entry ? 'Save changes' : 'Add'} onPress={onSave} loading={save.isPending} disabled={!form.name.trim()} />
-      {entry ? <Button title="Delete" variant="danger" onPress={onDelete} loading={remove.isPending} /> : null}
+      <Button title={entry ? 'Save changes' : 'Add'} onPress={onSave} disabled={!form.name.trim()} />
+      {entry ? <Button title="Delete" variant="danger" onPress={onDelete} /> : null}
     </Screen>
   );
 }

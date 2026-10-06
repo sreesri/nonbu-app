@@ -126,7 +126,7 @@ export default function HistoryScreen() {
           <Chip key={r} label={`${r} days`} selected={range === r} onPress={() => setRange(r)} />
         ))}
       </Row>
-      <ErrorText error={summary.error ?? sessions.error ?? del.error} />
+      <ErrorText error={summary.error ?? sessions.error} />
 
       {summary.isPending ? (
         <Loading />

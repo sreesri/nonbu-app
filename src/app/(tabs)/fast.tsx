@@ -4,6 +4,7 @@ import { Alert, RefreshControl, Text, View } from 'react-native';
 
 import { useCurrentSession, useMe, useSessions, useSwitchSession, useUpdateSession } from '@/api/hooks';
 import type { Session } from '@/api/types';
+import { isUnsynced } from '@/api/writes';
 import { DateTimeSheet } from '@/components/DateTimeSheet';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Body, Button, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
@@ -44,12 +45,10 @@ function SessionTimer({ session, now }: { session: Session; now: number }) {
         </Body>
       </View>
       <Button
-        title="Edit start"
+        title={isUnsynced(session) ? 'Syncing…' : 'Edit start'}
         variant="secondary"
-        onPress={() => {
-          update.reset();
-          setEditingStart(true);
-        }}
+        onPress={() => setEditingStart(true)}
+        disabled={isUnsynced(session)}
         style={{ alignSelf: 'stretch' }}
       />
       <DateTimeSheet
@@ -61,15 +60,11 @@ function SessionTimer({ session, now }: { session: Session; now: number }) {
         describe={(start) => (
           <SessionPreview isFast={isFast} startMs={start.getTime()} targetHours={session.target_hours} now={now} />
         )}
-        saving={update.isPending}
-        error={update.error}
         onCancel={() => setEditingStart(false)}
-        onSave={(start) =>
-          update.mutate(
-            { id: session.id, started_at: start.toISOString() },
-            { onSuccess: () => setEditingStart(false) },
-          )
-        }
+        onSave={(start) => {
+          update.mutate({ id: session.id, started_at: start.toISOString() });
+          setEditingStart(false);
+        }}
       />
     </View>
   );
@@ -157,7 +152,7 @@ export default function FastScreen() {
         <Card style={{ gap: spacing.lg }}>
           {session ? <SessionTimer key={session.id} session={session} now={now} /> : null}
           {fasting ? (
-            <Button title="End fast" onPress={onEnd} loading={switchSession.isPending} />
+            <Button title="End fast" onPress={onEnd} />
           ) : (
             <>
               <View style={{ gap: spacing.sm }}>
@@ -168,13 +163,13 @@ export default function FastScreen() {
                   ))}
                 </Row>
               </View>
-              <Button title={`Start ${selectedTarget}h fast`} onPress={onStart} loading={switchSession.isPending} />
+              <Button title={`Start ${selectedTarget}h fast`} onPress={onStart} />
             </>
           )}
         </Card>
       )}
 
-      <ErrorText error={current.error ?? switchSession.error} />
+      <ErrorText error={current.error} />
 
       <Card>
         <Label muted>Last 7 days</Label>

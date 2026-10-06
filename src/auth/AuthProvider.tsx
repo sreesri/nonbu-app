@@ -9,6 +9,7 @@ import { getCalendars } from 'expo-localization';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api, setSessionExpiredHandler, storeTokenPair } from '@/api/client';
+import { clearCache } from '@/api/queryClient';
 import type { TokenPair, User } from '@/api/types';
 import { GOOGLE_WEB_CLIENT_ID } from '@/lib/config';
 import { pushWidget } from '@/widget/sync';
@@ -42,12 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadTokens().then((tokens) => setStatus(tokens ? 'signedIn' : 'signedOut'));
     setSessionExpiredHandler(() => {
-      qc.clear();
+      clearCache().catch(() => {}); // best-effort: a stale cache is replaced on next sign-in anyway
       clearWidget();
       setStatus('signedOut');
     });
     return () => setSessionExpiredHandler(null);
-  }, [qc]);
+  }, []);
 
   const signIn = useCallback(async () => {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -86,10 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await clearTokens();
     await GoogleSignin.signOut().catch(() => {});
-    qc.clear();
+    await clearCache();
     clearWidget();
     setStatus('signedOut');
-  }, [qc]);
+  }, []);
 
   const value = useMemo(() => ({ status, signIn, signOut }), [status, signIn, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

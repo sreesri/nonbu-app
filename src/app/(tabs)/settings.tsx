@@ -66,8 +66,10 @@ function FastingScheduleCard({ initial }: { initial: Goals }) {
   const [saved, setSaved] = useState(false);
   const dirty = fastHours !== initial.default_fast_hours;
 
-  const save = () =>
-    update.mutate({ goals: { default_fast_hours: fastHours } }, { onSuccess: () => setSaved(true) });
+  const save = () => {
+    update.mutate({ goals: { default_fast_hours: fastHours } });
+    setSaved(true);
+  };
 
   return (
     <Card>
@@ -79,13 +81,7 @@ function FastingScheduleCard({ initial }: { initial: Goals }) {
           setFastHours(h);
         }}
       />
-      <ErrorText error={update.error} />
-      <Button
-        title={saved ? 'Saved ✓' : 'Save schedule'}
-        onPress={save}
-        loading={update.isPending}
-        disabled={!dirty}
-      />
+      <Button title={saved ? 'Saved ✓' : 'Save schedule'} onPress={save} disabled={!dirty} />
     </Card>
   );
 }
@@ -95,8 +91,10 @@ function GoalsCard({ initial }: { initial: Goals }) {
   const [drafts, setDrafts] = useState(() => goalDrafts(initial));
   const [saved, setSaved] = useState(false);
 
-  const saveGoals = () =>
-    update.mutate({ goals: parseGoalDrafts(drafts) }, { onSuccess: () => setSaved(true) });
+  const saveGoals = () => {
+    update.mutate({ goals: parseGoalDrafts(drafts) });
+    setSaved(true);
+  };
 
   return (
     <Card>
@@ -108,8 +106,7 @@ function GoalsCard({ initial }: { initial: Goals }) {
           setDrafts((d) => ({ ...d, [key]: value }));
         }}
       />
-      <ErrorText error={update.error} />
-      <Button title={saved ? 'Saved ✓' : 'Save goals'} onPress={saveGoals} loading={update.isPending} />
+      <Button title={saved ? 'Saved ✓' : 'Save goals'} onPress={saveGoals} />
     </Card>
   );
 }
@@ -124,7 +121,7 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <Title>Settings</Title>
-      <ErrorText error={me.error ?? update.error} />
+      <ErrorText error={me.error} />
 
       {user ? (
         <>
