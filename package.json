@@ -50,5 +50,6 @@
     "build:apk": "eas build -p android --profile production",
     "postinstall": "patch-package"
   },
-  "private": true
+  "private": true,
+  "license": "UNLICENSED"
 }
