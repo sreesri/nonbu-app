@@ -1,0 +1,41 @@
+name: APK build
+
+# Manual "Run workflow" button: queues an Android build on EAS. Needed when native
+# code changes (new native library, permissions, app.json plugins, SDK upgrade),
+# since those can't ship as an OTA update. The build runs on EAS, not here, so the
+# job exits once it's queued; follow it via the link in the log or on expo.dev.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options: [production, development]
+        default: production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - name: Queue build
+        env:
+          PROFILE: ${{ inputs.profile }}
+        run: eas build --platform android --profile "$PROFILE" --non-interactive --no-wait
