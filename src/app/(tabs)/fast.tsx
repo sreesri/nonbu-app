@@ -1,21 +1,19 @@
-import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { Alert, RefreshControl, Text, View } from 'react-native';
+import { RefreshControl, Text, View } from 'react-native';
 
-import { useCurrentSession, useMe, useSessions, useSwitchSession, useUpdateSession } from '@/api/hooks';
+import { useCurrentSession, useMe, useSessions, useUpdateSession } from '@/api/hooks';
 import type { Session } from '@/api/types';
 import { isUnsynced } from '@/api/writes';
 import { DateTimeSheet } from '@/components/DateTimeSheet';
+import { FastControls, SessionPreview } from '@/components/FastControls';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Body, Button, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
-import { formatDateTime, formatDuration, formatHours, formatTime, shiftDateKey, todayKey } from '@/lib/format';
+import { formatDateTime, formatDuration, formatHours, shiftDateKey, todayKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
 import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
 
 const TARGETS = [12, 14, 16, 18, 20, 24, 36];
-/** The server requires a switch to be strictly after the current session's start. */
-const MIN_SWITCH_GAP_MS = 60_000;
 
 function SessionTimer({ session, now }: { session: Session; now: number }) {
   const t = useTheme();
@@ -72,33 +70,6 @@ function SessionTimer({ session, now }: { session: Session; now: number }) {
   );
 }
 
-/** "Fasted 14h 25m · 16h goal 12:15 PM" for a session that would start at `startMs`. */
-function SessionPreview({
-  isFast,
-  startMs,
-  targetHours,
-  now,
-}: {
-  isFast: boolean;
-  startMs: number;
-  targetHours: number;
-  now: number;
-}) {
-  const elapsedH = Math.max(now - startMs, 0) / 3600_000;
-  const dueAt = new Date(startMs + targetHours * 3600_000).toISOString();
-  return (
-    <Row style={{ justifyContent: 'space-between' }}>
-      <Body muted>
-        {isFast ? 'Fasted' : 'Eating'} <Body style={{ fontWeight: '600' }}>{formatHours(elapsedH)}</Body>
-      </Body>
-      <Body muted>
-        {isFast ? `${formatHours(targetHours)} goal` : 'Closes'}{' '}
-        <Body style={{ fontWeight: '600' }}>{formatTime(dueAt)}</Body>
-      </Body>
-    </Row>
-  );
-}
-
 export default function FastScreen() {
   const t = useTheme();
   const now = useNow();
@@ -106,38 +77,12 @@ export default function FastScreen() {
   const current = useCurrentSession();
   const today = todayKey();
   const recent = useSessions(shiftDateKey(today, -6), today, 'fast');
-  const switchSession = useSwitchSession();
 
   const [target, setTarget] = useState<number | null>(null);
-  const [pickingTime, setPickingTime] = useState(false);
 
   const session = current.data;
   const fasting = session?.kind === 'fast';
   const selectedTarget = target ?? me.data?.goals.default_fast_hours ?? DEFAULT_FAST_HOURS;
-
-  const onStart = (at?: Date) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    switchSession.mutate({ kind: 'fast', target_hours: selectedTarget, at: at?.toISOString() });
-  };
-
-  const finishFast = (at?: Date) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    switchSession.mutate({ kind: 'eat', at: at?.toISOString() });
-  };
-
-  const onEnd = () => {
-    if (!session) return;
-    const elapsedH = (now - new Date(session.started_at).getTime()) / 3600_000;
-    const finish = () => finishFast();
-    if (elapsedH < session.target_hours) {
-      Alert.alert('End fast early?', `You're at ${formatHours(elapsedH)} of ${session.target_hours}h.`, [
-        { text: 'Keep going', style: 'cancel' },
-        { text: 'End fast', style: 'destructive', onPress: finish },
-      ]);
-    } else {
-      finish();
-    }
-  };
 
   const refreshing = current.isRefetching || recent.isRefetching;
   const refresh = () => {
@@ -156,58 +101,17 @@ export default function FastScreen() {
       ) : (
         <Card style={{ gap: spacing.lg }}>
           {session ? <SessionTimer key={session.id} session={session} now={now} /> : null}
-          {fasting ? (
-            <Row>
-              <Button title="End fast" onPress={onEnd} style={{ flex: 2 }} />
-              <Button title="Pick time" variant="secondary" onPress={() => setPickingTime(true)} style={{ flex: 1 }} />
-            </Row>
-          ) : (
-            <>
-              <View style={{ gap: spacing.sm }}>
-                <Label muted>Target</Label>
-                <Row style={{ flexWrap: 'wrap' }}>
-                  {TARGETS.map((h) => (
-                    <Chip key={h} label={`${h}h`} selected={selectedTarget === h} onPress={() => setTarget(h)} />
-                  ))}
-                </Row>
-              </View>
-              <Row>
-                <Button title={`Start ${selectedTarget}h fast`} onPress={() => onStart()} style={{ flex: 2 }} />
-                <Button
-                  title="Pick time"
-                  variant="secondary"
-                  onPress={() => setPickingTime(true)}
-                  style={{ flex: 1 }}
-                />
+          {fasting ? null : (
+            <View style={{ gap: spacing.sm }}>
+              <Label muted>Target</Label>
+              <Row style={{ flexWrap: 'wrap' }}>
+                {TARGETS.map((h) => (
+                  <Chip key={h} label={`${h}h`} selected={selectedTarget === h} onPress={() => setTarget(h)} />
+                ))}
               </Row>
-            </>
+            </View>
           )}
-          <DateTimeSheet
-            visible={pickingTime}
-            title={fasting ? 'Fast ended' : 'Fast started'}
-            subtitle={fasting ? 'When did you break your fast?' : 'When did you start fasting?'}
-            value={new Date(now)}
-            minimumDate={session ? new Date(new Date(session.started_at).getTime() + MIN_SWITCH_GAP_MS) : undefined}
-            maximumDate={new Date(now)}
-            describe={(at) =>
-              fasting && session ? (
-                <SessionPreview
-                  isFast
-                  startMs={new Date(session.started_at).getTime()}
-                  targetHours={session.target_hours}
-                  now={at.getTime()}
-                />
-              ) : (
-                <SessionPreview isFast startMs={at.getTime()} targetHours={selectedTarget} now={now} />
-              )
-            }
-            onCancel={() => setPickingTime(false)}
-            onSave={(at) => {
-              setPickingTime(false);
-              if (fasting) finishFast(at);
-              else onStart(at);
-            }}
-          />
+          <FastControls session={session} targetHours={selectedTarget} now={now} />
         </Card>
       )}
 

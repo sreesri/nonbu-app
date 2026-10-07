@@ -1,10 +1,10 @@
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { format } from 'date-fns';
 import { RefreshControl, Text, View } from 'react-native';
 
-import { useCurrentSession, useDailySummary, useMe, useSwitchSession } from '@/api/hooks';
+import { useCurrentSession, useDailySummary, useMe } from '@/api/hooks';
 import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
+import { FastControls } from '@/components/FastControls';
 import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
 import { formatDuration, formatKcal, todayKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
@@ -26,7 +26,6 @@ export default function HomeScreen() {
   const me = useMe();
   const current = useCurrentSession();
   const summary = useDailySummary(today);
-  const start = useSwitchSession();
 
   const session = current.data;
   const s = summary.data;
@@ -42,11 +41,6 @@ export default function HomeScreen() {
     me.refetch();
     current.refetch();
     summary.refetch();
-  };
-
-  const onStart = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    start.mutate({ kind: 'fast', target_hours: defaultTarget });
   };
 
   return (
@@ -114,11 +108,7 @@ export default function HomeScreen() {
             <Body muted>No fasts yet. Start one to see your timer here.</Body>
           </View>
         )}
-        {phase?.kind === 'fast' ? (
-          <Button title="Open timer" variant="secondary" onPress={() => router.navigate('/fast')} />
-        ) : current.isSuccess ? (
-          <Button title={`Start ${defaultTarget}h fast`} onPress={onStart} />
-        ) : null}
+        {current.isSuccess ? <FastControls session={session} targetHours={defaultTarget} now={now} /> : null}
       </Card>
 
       <Card>
