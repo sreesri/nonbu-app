@@ -108,7 +108,7 @@ export default function HomeScreen() {
             <Body muted>No fasts yet. Start one to see your timer here.</Body>
           </View>
         )}
-        {current.isSuccess ? <FastControls session={session} targetHours={defaultTarget} now={now} /> : null}
+        {current.isSuccess ? <FastControls session={session} targetHours={defaultTarget} now={now} alwaysPickTime /> : null}
       </Card>
 
       <Card>

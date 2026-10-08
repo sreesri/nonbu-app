@@ -41,15 +41,18 @@ export function SessionPreview({
 /**
  * "Start Nh fast" / "End fast" for the current session, plus "Pick time" to start or end
  * it at an earlier time. Ending a fast before its goal asks for confirmation first.
+ * With `alwaysPickTime`, the main button opens the time picker (preset to now) instead.
  */
 export function FastControls({
   session,
   targetHours,
   now,
+  alwaysPickTime = false,
 }: {
   session: Session | null | undefined;
   targetHours: number;
   now: number;
+  alwaysPickTime?: boolean;
 }) {
   const switchSession = useSwitchSession();
   const [pickingTime, setPickingTime] = useState(false);
@@ -78,16 +81,19 @@ export function FastControls({
     }
   };
 
+  const openPicker = () => setPickingTime(true);
+  const title = fasting ? 'End fast' : `Start ${targetHours}h fast`;
+
   return (
     <>
-      <Row>
-        <Button
-          title={fasting ? 'End fast' : `Start ${targetHours}h fast`}
-          onPress={fasting ? onEndNow : () => startFast()}
-          style={{ flex: 2 }}
-        />
-        <Button title="Pick time" variant="secondary" onPress={() => setPickingTime(true)} style={{ flex: 1 }} />
-      </Row>
+      {alwaysPickTime ? (
+        <Button title={title} onPress={openPicker} />
+      ) : (
+        <Row>
+          <Button title={title} onPress={fasting ? onEndNow : () => startFast()} style={{ flex: 2 }} />
+          <Button title="Pick time" variant="secondary" onPress={openPicker} style={{ flex: 1 }} />
+        </Row>
+      )}
       <DateTimeSheet
         visible={pickingTime}
         title={fasting ? 'Fast ended' : 'Fast started'}
