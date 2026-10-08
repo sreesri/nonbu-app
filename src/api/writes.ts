@@ -41,6 +41,26 @@ export const writeKeys = {
   updateMe: ['write', 'updateMe'],
 } as const;
 
+type WriteName = keyof typeof writeKeys;
+/** First segment of the query keys in ./keys.ts. */
+type CacheArea = 'me' | 'sessions' | 'meals' | 'library' | 'summary';
+
+/** The cached data each write can change, refreshed from the server once the queue has synced. */
+const AFFECTS: Record<WriteName, CacheArea[]> = {
+  // Summaries include the day's fasting hours.
+  switchSession: ['sessions', 'summary'],
+  updateSession: ['sessions', 'summary'],
+  deleteSession: ['sessions', 'summary'],
+  saveMeal: ['meals', 'summary'],
+  deleteMeal: ['meals', 'summary'],
+  saveDish: ['library'],
+  deleteDish: ['library'],
+  saveSavedMeal: ['library'],
+  deleteSavedMeal: ['library'],
+  // Summaries include the goals.
+  updateMe: ['me', 'summary'],
+};
+
 /** Every queued write shares this scope, which makes React Query run them serially. */
 const QUEUE_SCOPE = { id: 'nonbu-writes' };
 const QUEUED_META = { queued: true };
@@ -67,16 +87,16 @@ export function isUnsynced(record: { id: number }): boolean {
 }
 
 export function registerQueuedWrites(qc: QueryClient): void {
-  const queued = {
+  const queued = (write: WriteName) => ({
     scope: QUEUE_SCOPE,
     meta: QUEUED_META,
     retry: (_count: number, error: Error) => isTransient(error),
     retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, MAX_RETRY_DELAY_MS),
-    onSettled: () => refreshWhenQueueDrains(qc),
-  };
+    onSettled: () => refreshWhenQueueDrains(qc, AFFECTS[write]),
+  });
 
   qc.setMutationDefaults(writeKeys.switchSession, {
-    ...queued,
+    ...queued('switchSession'),
     mutationFn: (body: SwitchVars) => api<Session>('/sessions/switch', { method: 'POST', body }),
     onMutate: async (vars: SwitchVars) => {
       await qc.cancelQueries({ queryKey: keys.currentSession });
@@ -93,7 +113,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.updateSession, {
-    ...queued,
+    ...queued('updateSession'),
     mutationFn: ({ id, ...patch }: SessionPatchVars) => api<Session>(`/sessions/${id}`, { method: 'PATCH', body: patch }),
     onMutate: async ({ id, ...patch }: SessionPatchVars) => {
       await qc.cancelQueries({ queryKey: ['sessions'] });
@@ -104,7 +124,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.deleteSession, {
-    ...queued,
+    ...queued('deleteSession'),
     mutationFn: (id: number) => api<void>(`/sessions/${id}`, { method: 'DELETE' }),
     // The current session isn't touched: deleting it resumes the previous one server-side.
     onMutate: async (id: number) => {
@@ -114,7 +134,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.saveMeal, {
-    ...queued,
+    ...queued('saveMeal'),
     mutationFn: ({ id, ...body }: SaveMealVars) =>
       id === undefined
         ? api<Meal>('/meals', { method: 'POST', body })
@@ -132,7 +152,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.deleteMeal, {
-    ...queued,
+    ...queued('deleteMeal'),
     mutationFn: (id: number) => api<void>(`/meals/${id}`, { method: 'DELETE' }),
     onMutate: async (id: number) => {
       await qc.cancelQueries({ queryKey: ['meals'] });
@@ -144,7 +164,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.saveDish, {
-    ...queued,
+    ...queued('saveDish'),
     mutationFn: ({ id, ...body }: SaveDishVars) =>
       id === undefined
         ? api<Dish>('/library/dishes', { method: 'POST', body })
@@ -162,7 +182,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.deleteDish, {
-    ...queued,
+    ...queued('deleteDish'),
     mutationFn: (id: number) => api<void>(`/library/dishes/${id}`, { method: 'DELETE' }),
     // Mirrors the server: the dish leaves every saved meal, and a meal left empty is deleted.
     onMutate: async (id: number) => {
@@ -177,7 +197,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.saveSavedMeal, {
-    ...queued,
+    ...queued('saveSavedMeal'),
     mutationFn: ({ id, ...body }: SaveSavedMealVars) =>
       id === undefined
         ? api<SavedMeal>('/library/meals', { method: 'POST', body })
@@ -201,7 +221,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.deleteSavedMeal, {
-    ...queued,
+    ...queued('deleteSavedMeal'),
     mutationFn: (id: number) => api<void>(`/library/meals/${id}`, { method: 'DELETE' }),
     onMutate: async (id: number) => {
       await qc.cancelQueries({ queryKey: ['library'] });
@@ -210,7 +230,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 
   qc.setMutationDefaults(writeKeys.updateMe, {
-    ...queued,
+    ...queued('updateMe'),
     mutationFn: (patch: UserPatch) => api<User>('/me', { method: 'PATCH', body: patch }),
     onMutate: async (patch: UserPatch) => {
       await qc.cancelQueries({ queryKey: keys.me });
@@ -219,14 +239,21 @@ export function registerQueuedWrites(qc: QueryClient): void {
   });
 }
 
+/** Areas changed by writes that have settled since the queue last drained. */
+const staleAreas = new Set<CacheArea>();
+
 /**
  * Optimistic data stands in for the server's until the whole queue has synced; refreshing after
- * each write would flash intermediate server states while later writes are still queued.
+ * each write would flash intermediate server states while later writes are still queued. Only the
+ * areas the synced writes touched are refetched, not the whole cache.
  */
-function refreshWhenQueueDrains(qc: QueryClient): Promise<void> | undefined {
+function refreshWhenQueueDrains(qc: QueryClient, affected: CacheArea[]): Promise<unknown> | undefined {
+  for (const area of affected) staleAreas.add(area);
   // The settling write still counts as mutating while its onSettled runs.
   if (qc.isMutating({ predicate: isQueuedWrite }) > 1) return;
-  return qc.invalidateQueries();
+  const areas = [...staleAreas];
+  staleAreas.clear();
+  return Promise.all(areas.map((area) => qc.invalidateQueries({ queryKey: [area] })));
 }
 
 /** Network failures and server outages are retried; a 4xx means the write itself is rejected. */

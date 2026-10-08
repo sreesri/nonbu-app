@@ -50,17 +50,16 @@ export function SessionPreview({
 export function FastControls({
   session,
   targetHours,
-  now,
   alwaysPickTime = false,
 }: {
   session: Session | null | undefined;
   targetHours: number;
-  now: number;
   alwaysPickTime?: boolean;
 }) {
   const switchSession = useSwitchSession();
   const saveMeal = useSaveMeal();
-  const [pickingTime, setPickingTime] = useState(false);
+  // When the picker was opened: its default and latest selectable time. Null while closed.
+  const [pickerOpenedAt, setPickerOpenedAt] = useState<Date | null>(null);
   const [mealItems, setMealItems] = useState<DraftItem[]>([]);
   const fasting = session?.kind === 'fast';
 
@@ -76,7 +75,7 @@ export function FastControls({
 
   const onEndNow = () => {
     if (!session) return;
-    const elapsedH = (now - new Date(session.started_at).getTime()) / 3600_000;
+    const elapsedH = (Date.now() - new Date(session.started_at).getTime()) / 3600_000;
     if (elapsedH < session.target_hours) {
       Alert.alert('End fast early?', `You're at ${formatHours(elapsedH)} of ${session.target_hours}h.`, [
         { text: 'Keep going', style: 'cancel' },
@@ -89,7 +88,7 @@ export function FastControls({
 
   const openPicker = () => {
     setMealItems([]);
-    setPickingTime(true);
+    setPickerOpenedAt(new Date());
   };
 
   const logMeal = (at: Date) => {
@@ -115,12 +114,12 @@ export function FastControls({
         </Row>
       )}
       <DateTimeSheet
-        visible={pickingTime}
+        visible={pickerOpenedAt !== null}
         title={fasting ? 'Fast ended' : 'Fast started'}
         subtitle={fasting ? 'When did you break your fast?' : 'When did you start fasting?'}
-        value={new Date(now)}
+        value={pickerOpenedAt ?? new Date()}
         minimumDate={session ? new Date(new Date(session.started_at).getTime() + MIN_SWITCH_GAP_MS) : undefined}
-        maximumDate={new Date(now)}
+        maximumDate={pickerOpenedAt ?? undefined}
         describe={(at) =>
           fasting && session ? (
             <SessionPreview
@@ -130,12 +129,12 @@ export function FastControls({
               now={at.getTime()}
             />
           ) : (
-            <SessionPreview isFast startMs={at.getTime()} targetHours={targetHours} now={now} />
+            <SessionPreview isFast startMs={at.getTime()} targetHours={targetHours} now={(pickerOpenedAt ?? at).getTime()} />
           )
         }
-        onCancel={() => setPickingTime(false)}
+        onCancel={() => setPickerOpenedAt(null)}
         onSave={(at) => {
-          setPickingTime(false);
+          setPickerOpenedAt(null);
           logMeal(at);
           if (fasting) endFast(at);
           else startFast(at);

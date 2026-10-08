@@ -15,28 +15,38 @@ import { useNow } from '@/lib/useNow';
 
 const TARGETS = [12, 14, 16, 18, 20, 24, 36];
 
-function SessionTimer({ session, now }: { session: Session; now: number }) {
+/** The ticking ring, kept apart from the rest of the screen so only it re-renders each second. */
+function SessionRing({ session }: { session: Session }) {
   const t = useTheme();
-  const update = useUpdateSession();
-  const [editingStart, setEditingStart] = useState(false);
-
+  const now = useNow();
   const isFast = session.kind === 'fast';
-  const startedMs = new Date(session.started_at).getTime();
-  const elapsed = now - startedMs;
+  const elapsed = now - new Date(session.started_at).getTime();
   const goalMs = session.target_hours * 3600_000;
   const done = elapsed >= goalMs;
 
   return (
+    <ProgressRing progress={elapsed / goalMs} color={isFast ? t.fasting : t.eating}>
+      <Label muted>{isFast ? (done ? 'Goal reached' : 'Fasting') : done ? 'Window closed' : 'Eating window'}</Label>
+      <Text style={{ fontSize: 40, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'] }}>
+        {formatDuration(elapsed)}
+      </Text>
+      <Body muted>{done ? `+${formatDuration(elapsed - goalMs)}` : `${formatDuration(goalMs - elapsed)} left`}</Body>
+    </ProgressRing>
+  );
+}
+
+function SessionTimer({ session }: { session: Session }) {
+  const update = useUpdateSession();
+  // When "Edit start" was opened: the latest selectable time. Null while closed.
+  const [editOpenedAt, setEditOpenedAt] = useState<Date | null>(null);
+
+  const isFast = session.kind === 'fast';
+  const startedMs = new Date(session.started_at).getTime();
+  const goalMs = session.target_hours * 3600_000;
+
+  return (
     <View style={{ alignItems: 'center', gap: spacing.lg }}>
-      <ProgressRing progress={elapsed / goalMs} color={isFast ? t.fasting : t.eating}>
-        <Label muted>{isFast ? (done ? 'Goal reached' : 'Fasting') : done ? 'Window closed' : 'Eating window'}</Label>
-        <Text style={{ fontSize: 40, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'] }}>
-          {formatDuration(elapsed)}
-        </Text>
-        <Body muted>
-          {done ? `+${formatDuration(elapsed - goalMs)}` : `${formatDuration(goalMs - elapsed)} left`}
-        </Body>
-      </ProgressRing>
+      <SessionRing session={session} />
       <View style={{ alignSelf: 'stretch', gap: spacing.xs }}>
         <Body muted>Started {formatDateTime(session.started_at)}</Body>
         <Body muted>
@@ -47,23 +57,23 @@ function SessionTimer({ session, now }: { session: Session; now: number }) {
       <Button
         title={isUnsynced(session) ? 'Syncing…' : 'Edit start'}
         variant="secondary"
-        onPress={() => setEditingStart(true)}
+        onPress={() => setEditOpenedAt(new Date())}
         disabled={isUnsynced(session)}
         style={{ alignSelf: 'stretch' }}
       />
       <DateTimeSheet
-        visible={editingStart}
+        visible={editOpenedAt !== null}
         title={isFast ? 'Fast started' : 'Eating started'}
         subtitle="Set it to when this actually began."
         value={new Date(session.started_at)}
-        maximumDate={new Date(now)}
+        maximumDate={editOpenedAt ?? undefined}
         describe={(start) => (
-          <SessionPreview isFast={isFast} startMs={start.getTime()} targetHours={session.target_hours} now={now} />
+          <SessionPreview isFast={isFast} startMs={start.getTime()} targetHours={session.target_hours} now={(editOpenedAt ?? start).getTime()} />
         )}
-        onCancel={() => setEditingStart(false)}
+        onCancel={() => setEditOpenedAt(null)}
         onSave={(start) => {
           update.mutate({ id: session.id, started_at: start.toISOString() });
-          setEditingStart(false);
+          setEditOpenedAt(null);
         }}
       />
     </View>
@@ -72,7 +82,6 @@ function SessionTimer({ session, now }: { session: Session; now: number }) {
 
 export default function FastScreen() {
   const t = useTheme();
-  const now = useNow();
   const me = useMe();
   const current = useCurrentSession();
   const today = todayKey();
@@ -90,7 +99,7 @@ export default function FastScreen() {
     recent.refetch();
   };
 
-  const completed = recent.data?.filter((f) => f.ended_at) ?? [];
+  const completed = recent.data?.filter((f): f is Session & { ended_at: string } => f.ended_at !== null) ?? [];
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
@@ -100,7 +109,7 @@ export default function FastScreen() {
         <Loading />
       ) : (
         <Card style={{ gap: spacing.lg }}>
-          {session ? <SessionTimer key={session.id} session={session} now={now} /> : null}
+          {session ? <SessionTimer key={session.id} session={session} /> : null}
           {fasting ? null : (
             <View style={{ gap: spacing.sm }}>
               <Label muted>Target</Label>
@@ -111,7 +120,7 @@ export default function FastScreen() {
               </Row>
             </View>
           )}
-          <FastControls session={session} targetHours={selectedTarget} now={now} />
+          <FastControls session={session} targetHours={selectedTarget} />
         </Card>
       )}
 
@@ -121,7 +130,7 @@ export default function FastScreen() {
         <Label muted>Last 7 days</Label>
         {completed.length ? (
           completed.slice(0, 7).map((f) => {
-            const hours = (new Date(f.ended_at ?? now).getTime() - new Date(f.started_at).getTime()) / 3600_000;
+            const hours = (new Date(f.ended_at).getTime() - new Date(f.started_at).getTime()) / 3600_000;
             const hit = hours >= f.target_hours;
             return (
               <Row key={f.id} style={{ justifyContent: 'space-between' }}>
