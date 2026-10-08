@@ -48,8 +48,13 @@ function RootNavigator() {
         </Stack.Protected>
         <Stack.Protected guard={signedIn && !onboarding}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="food/new" options={{ title: 'Add food', presentation: 'modal' }} />
-          <Stack.Screen name="food/[id]" options={{ title: 'Edit food', presentation: 'modal' }} />
+          <Stack.Screen name="meal/new" options={{ title: 'Log meal', presentation: 'modal' }} />
+          <Stack.Screen name="meal/[id]" options={{ title: 'Edit meal', presentation: 'modal' }} />
+          <Stack.Screen name="library/index" options={{ title: 'Library' }} />
+          <Stack.Screen name="library/dish/new" options={{ title: 'New dish', presentation: 'modal' }} />
+          <Stack.Screen name="library/dish/[id]" options={{ title: 'Edit dish', presentation: 'modal' }} />
+          <Stack.Screen name="library/meal/new" options={{ title: 'New saved meal', presentation: 'modal' }} />
+          <Stack.Screen name="library/meal/[id]" options={{ title: 'Edit saved meal', presentation: 'modal' }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />

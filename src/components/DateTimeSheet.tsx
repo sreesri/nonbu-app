@@ -1,6 +1,6 @@
 import { isSameDay } from 'date-fns';
 import { useState, type ReactNode } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -20,6 +20,8 @@ import { WHEEL_ITEM_HEIGHT, WHEEL_VISIBLE_ROWS, WheelColumn } from './WheelColum
 const MERIDIEMS = ['AM', 'PM'];
 const HOUR_LABELS = HOURS_12.map(String);
 const MINUTE_LABELS = MINUTES.map((m) => String(m).padStart(2, '0'));
+/** Extra content scrolls within this share of the screen, so the wheels and buttons stay visible. */
+const EXTRA_MAX_HEIGHT_RATIO = 0.35;
 
 type SheetProps = {
   title: string;
@@ -29,6 +31,8 @@ type SheetProps = {
   maximumDate?: Date;
   /** What the chosen time would mean, shown under the wheels (e.g. the fast's goal time). */
   describe?: (date: Date) => ReactNode;
+  /** More inputs saved along with the time (e.g. the meal eaten then), below the wheels. */
+  children?: ReactNode;
   saving?: boolean;
   error?: unknown;
   onCancel: () => void;
@@ -52,6 +56,7 @@ function SheetBody({
   minimumDate,
   maximumDate,
   describe,
+  children,
   saving,
   error,
   onCancel,
@@ -59,6 +64,7 @@ function SheetBody({
 }: SheetProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const [days] = useState(() => dayOptions(value, minimumDate, maximumDate));
   const [draft, setDraft] = useState(() => clampDate(value, minimumDate, maximumDate));
 
@@ -142,6 +148,11 @@ function SheetBody({
           <View style={{ borderRadius: radius.md, backgroundColor: t.background, padding: spacing.md }}>
             {describe(draft)}
           </View>
+        ) : null}
+        {children ? (
+          <ScrollView style={{ maxHeight: height * EXTRA_MAX_HEIGHT_RATIO }} keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
         ) : null}
         <ErrorText error={error} />
 

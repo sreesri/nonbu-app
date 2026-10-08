@@ -4,7 +4,21 @@ import { toDateKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS, HOURS_PER_DAY } from '@/lib/goals';
 import { ApiError, api } from './client';
 import { keys } from './keys';
-import type { DailySummary, FoodEntry, FoodInput, Session, SessionKind, SessionSwitch, Totals, User, UserPatch } from './types';
+import { mealTotals, NUTRIENTS, sumTotals } from '@/lib/nutrition';
+import type {
+  DailySummary,
+  Dish,
+  DishInput,
+  Meal,
+  MealInput,
+  SavedMeal,
+  SavedMealInput,
+  Session,
+  SessionKind,
+  SessionSwitch,
+  User,
+  UserPatch,
+} from './types';
 
 /**
  * Offline-first writes. Each one updates the cache optimistically, then runs against the API in
@@ -18,8 +32,12 @@ export const writeKeys = {
   switchSession: ['write', 'switchSession'],
   updateSession: ['write', 'updateSession'],
   deleteSession: ['write', 'deleteSession'],
-  saveFood: ['write', 'saveFood'],
-  deleteFood: ['write', 'deleteFood'],
+  saveMeal: ['write', 'saveMeal'],
+  deleteMeal: ['write', 'deleteMeal'],
+  saveDish: ['write', 'saveDish'],
+  deleteDish: ['write', 'deleteDish'],
+  saveSavedMeal: ['write', 'saveSavedMeal'],
+  deleteSavedMeal: ['write', 'deleteSavedMeal'],
   updateMe: ['write', 'updateMe'],
 } as const;
 
@@ -30,7 +48,9 @@ const MAX_RETRY_DELAY_MS = 30_000;
 
 export type SwitchVars = SessionSwitch & { at: string };
 export type SessionPatchVars = Partial<Omit<Session, 'kind'>> & { id: number };
-export type SaveFoodVars = Partial<FoodInput> & { id?: number };
+export type SaveMealVars = Partial<MealInput> & { id?: number };
+export type SaveDishVars = Partial<DishInput> & { id?: number };
+export type SaveSavedMealVars = Partial<SavedMealInput> & { id?: number };
 
 export function isQueuedWrite(mutation: { meta?: MutationMeta }): boolean {
   return mutation.meta?.queued === true;
@@ -93,32 +113,99 @@ export function registerQueuedWrites(qc: QueryClient): void {
     },
   });
 
-  qc.setMutationDefaults(writeKeys.saveFood, {
+  qc.setMutationDefaults(writeKeys.saveMeal, {
     ...queued,
-    mutationFn: ({ id, ...body }: SaveFoodVars) =>
+    mutationFn: ({ id, ...body }: SaveMealVars) =>
       id === undefined
-        ? api<FoodEntry>('/food', { method: 'POST', body })
-        : api<FoodEntry>(`/food/${id}`, { method: 'PATCH', body }),
-    onMutate: async ({ id, ...body }: SaveFoodVars) => {
-      await qc.cancelQueries({ queryKey: ['food'] });
+        ? api<Meal>('/meals', { method: 'POST', body })
+        : api<Meal>(`/meals/${id}`, { method: 'PATCH', body }),
+    onMutate: async ({ id, ...body }: SaveMealVars) => {
+      await qc.cancelQueries({ queryKey: ['meals'] });
       await qc.cancelQueries({ queryKey: ['summary'] });
-      const previous = id === undefined ? undefined : findCachedFood(qc, id);
-      if (previous) removeFood(qc, previous);
-      const entry: FoodEntry = { ...EMPTY_FOOD, ...previous, ...body, id: id ?? tempId() };
-      addFood(qc, entry);
-      qc.setQueryData(keys.foodEntry(entry.id), entry);
+      const previous = id === undefined ? undefined : findCachedMeal(qc, id);
+      if (previous) removeMeal(qc, previous);
+      const merged = { ...EMPTY_MEAL, ...previous, ...body };
+      const meal: Meal = { ...merged, id: id ?? tempId(), totals: mealTotals(merged.items) };
+      addMeal(qc, meal);
+      qc.setQueryData(keys.meal(meal.id), meal);
     },
   });
 
-  qc.setMutationDefaults(writeKeys.deleteFood, {
+  qc.setMutationDefaults(writeKeys.deleteMeal, {
     ...queued,
-    mutationFn: (id: number) => api<void>(`/food/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => api<void>(`/meals/${id}`, { method: 'DELETE' }),
     onMutate: async (id: number) => {
-      await qc.cancelQueries({ queryKey: ['food'] });
+      await qc.cancelQueries({ queryKey: ['meals'] });
       await qc.cancelQueries({ queryKey: ['summary'] });
-      const entry = findCachedFood(qc, id);
-      if (entry) removeFood(qc, entry);
-      qc.removeQueries({ queryKey: keys.foodEntry(id), exact: true });
+      const meal = findCachedMeal(qc, id);
+      if (meal) removeMeal(qc, meal);
+      qc.removeQueries({ queryKey: keys.meal(id), exact: true });
+    },
+  });
+
+  qc.setMutationDefaults(writeKeys.saveDish, {
+    ...queued,
+    mutationFn: ({ id, ...body }: SaveDishVars) =>
+      id === undefined
+        ? api<Dish>('/library/dishes', { method: 'POST', body })
+        : api<Dish>(`/library/dishes/${id}`, { method: 'PATCH', body }),
+    onMutate: async ({ id, ...body }: SaveDishVars) => {
+      await qc.cancelQueries({ queryKey: ['library'] });
+      const previous = qc.getQueryData<Dish[]>(keys.dishes)?.find((d) => d.id === id);
+      const dish: Dish = { ...EMPTY_DISH, ...previous, ...body, id: id ?? tempId() };
+      qc.setQueryData<Dish[]>(keys.dishes, (list) => byName([...(list ?? []).filter((d) => d.id !== dish.id), dish]));
+      // Saved meals show their dishes' current values.
+      qc.setQueryData<SavedMeal[]>(keys.savedMeals, (meals) =>
+        meals?.map((m) => withTotals({ ...m, items: m.items.map((i) => (i.dish.id === dish.id ? { ...i, dish } : i)) })),
+      );
+    },
+  });
+
+  qc.setMutationDefaults(writeKeys.deleteDish, {
+    ...queued,
+    mutationFn: (id: number) => api<void>(`/library/dishes/${id}`, { method: 'DELETE' }),
+    // Mirrors the server: the dish leaves every saved meal, and a meal left empty is deleted.
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ['library'] });
+      qc.setQueryData<Dish[]>(keys.dishes, (list) => list?.filter((d) => d.id !== id));
+      qc.setQueryData<SavedMeal[]>(keys.savedMeals, (meals) =>
+        meals
+          ?.map((m) => withTotals({ ...m, items: m.items.filter((i) => i.dish.id !== id) }))
+          .filter((m) => m.items.length > 0),
+      );
+    },
+  });
+
+  qc.setMutationDefaults(writeKeys.saveSavedMeal, {
+    ...queued,
+    mutationFn: ({ id, ...body }: SaveSavedMealVars) =>
+      id === undefined
+        ? api<SavedMeal>('/library/meals', { method: 'POST', body })
+        : api<SavedMeal>(`/library/meals/${id}`, { method: 'PATCH', body }),
+    onMutate: async ({ id, name, items }: SaveSavedMealVars) => {
+      await qc.cancelQueries({ queryKey: ['library'] });
+      const previous = qc.getQueryData<SavedMeal[]>(keys.savedMeals)?.find((m) => m.id === id);
+      const dishes = new Map((qc.getQueryData<Dish[]>(keys.dishes) ?? []).map((d) => [d.id, d]));
+      const resolved = items?.flatMap(({ dish_id, servings }) => {
+        const dish = dishes.get(dish_id);
+        return dish ? [{ dish, servings }] : [];
+      });
+      const meal = withTotals({
+        id: id ?? tempId(),
+        name: name ?? previous?.name ?? '',
+        items: resolved ?? previous?.items ?? [],
+        totals: EMPTY_TOTALS,
+      });
+      qc.setQueryData<SavedMeal[]>(keys.savedMeals, (list) => byName([...(list ?? []).filter((m) => m.id !== meal.id), meal]));
+    },
+  });
+
+  qc.setMutationDefaults(writeKeys.deleteSavedMeal, {
+    ...queued,
+    mutationFn: (id: number) => api<void>(`/library/meals/${id}`, { method: 'DELETE' }),
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ['library'] });
+      qc.setQueryData<SavedMeal[]>(keys.savedMeals, (list) => list?.filter((m) => m.id !== id));
     },
   });
 
@@ -162,12 +249,18 @@ function applyUserPatch(user: User, { goals, ...rest }: UserPatch): User {
   };
 }
 
-// --- food cache helpers ---------------------------------------------------
+// --- meal cache helpers ---------------------------------------------------
 
-const EMPTY_FOOD: Omit<FoodEntry, 'id'> = {
+const EMPTY_MEAL: MealInput = {
   eaten_at: new Date(0).toISOString(),
-  name: '',
+  name: null,
   meal_type: 'snack',
+  notes: null,
+  items: [],
+};
+
+const EMPTY_DISH: DishInput = {
+  name: '',
   quantity: null,
   unit: null,
   calories: null,
@@ -175,42 +268,50 @@ const EMPTY_FOOD: Omit<FoodEntry, 'id'> = {
   carbs_g: null,
   fat_g: null,
   fiber_g: null,
-  notes: null,
 };
 
-const TOTAL_FIELDS: (keyof Totals)[] = ['calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'];
+const EMPTY_TOTALS = sumTotals([]);
 
-/** Local calendar day the entry is logged under (the device and account share a timezone). */
-const dayOf = (entry: FoodEntry) => toDateKey(new Date(entry.eaten_at));
+/** Alphabetical, ignoring case, like the library endpoints. */
+function byName<T extends { name: string }>(list: T[]): T[] {
+  return list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
 
-function findCachedFood(qc: QueryClient, id: number): FoodEntry | undefined {
-  const direct = qc.getQueryData<FoodEntry>(keys.foodEntry(id));
+function withTotals(meal: SavedMeal): SavedMeal {
+  return { ...meal, totals: sumTotals(meal.items.map((i) => ({ nutrition: i.dish, servings: i.servings }))) };
+}
+
+/** Local calendar day the meal is logged under (the device and account share a timezone). */
+const dayOf = (meal: Meal) => toDateKey(new Date(meal.eaten_at));
+
+function findCachedMeal(qc: QueryClient, id: number): Meal | undefined {
+  const direct = qc.getQueryData<Meal>(keys.meal(id));
   if (direct) return direct;
-  for (const [, list] of qc.getQueriesData<FoodEntry[]>({ queryKey: keys.foodDays })) {
-    const entry = list?.find((e) => e.id === id);
-    if (entry) return entry;
+  for (const [, list] of qc.getQueriesData<Meal[]>({ queryKey: keys.mealDays })) {
+    const meal = list?.find((m) => m.id === id);
+    if (meal) return meal;
   }
   return undefined;
 }
 
-/** Adds the entry to its day's list (kept in eaten_at order, like the API) and day totals. */
-function addFood(qc: QueryClient, entry: FoodEntry) {
-  qc.setQueryData<FoodEntry[]>(keys.food(dayOf(entry)), (list) =>
-    list && [...list, entry].sort((a, b) => a.eaten_at.localeCompare(b.eaten_at)),
+/** Adds the meal to its day's list (kept in eaten_at order, like the API) and day totals. */
+function addMeal(qc: QueryClient, meal: Meal) {
+  qc.setQueryData<Meal[]>(keys.meals(dayOf(meal)), (list) =>
+    list && [...list, meal].sort((a, b) => a.eaten_at.localeCompare(b.eaten_at)),
   );
-  adjustDailyTotals(qc, entry, 1);
+  adjustDailyTotals(qc, meal, 1);
 }
 
-function removeFood(qc: QueryClient, entry: FoodEntry) {
-  qc.setQueryData<FoodEntry[]>(keys.food(dayOf(entry)), (list) => list?.filter((e) => e.id !== entry.id));
-  adjustDailyTotals(qc, entry, -1);
+function removeMeal(qc: QueryClient, meal: Meal) {
+  qc.setQueryData<Meal[]>(keys.meals(dayOf(meal)), (list) => list?.filter((m) => m.id !== meal.id));
+  adjustDailyTotals(qc, meal, -1);
 }
 
-function adjustDailyTotals(qc: QueryClient, entry: FoodEntry, sign: 1 | -1) {
-  qc.setQueryData<DailySummary>(keys.daily(dayOf(entry)), (summary) => {
+function adjustDailyTotals(qc: QueryClient, meal: Meal, sign: 1 | -1) {
+  qc.setQueryData<DailySummary>(keys.daily(dayOf(meal)), (summary) => {
     if (!summary) return summary;
     const totals = { ...summary.totals };
-    for (const field of TOTAL_FIELDS) totals[field] += sign * (entry[field] ?? 0);
+    for (const n of NUTRIENTS) totals[n] += sign * meal.totals[n];
     return { ...summary, totals, entry_count: summary.entry_count + sign };
   });
 }

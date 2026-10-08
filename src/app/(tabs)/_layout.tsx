@@ -32,7 +32,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('⌂') }} />
       <Tabs.Screen name="fast" options={{ title: 'Fast', tabBarIcon: icon('⏱') }} />
-      <Tabs.Screen name="food" options={{ title: 'Food', tabBarIcon: icon('🍽') }} />
+      <Tabs.Screen name="meals" options={{ title: 'Meals', tabBarIcon: icon('🍽') }} />
       <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('📈') }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon('⚙︎') }} />
     </Tabs>

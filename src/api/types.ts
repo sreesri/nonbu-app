@@ -69,29 +69,60 @@ export type OnboardingInput = {
   current: OnboardingSession;
 };
 
-export type FoodEntry = {
+export type Totals = { calories: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number };
+
+/** Nutrition for one serving; any value may be unknown. */
+export type Nutrition = { [K in keyof Totals]: number | null };
+
+/** A dish in the user's library; `quantity` + `unit` describe one serving (e.g. 2 pc). */
+export type Dish = Nutrition & {
   id: number;
-  eaten_at: string;
   name: string;
-  meal_type: MealType;
   quantity: number | null;
   unit: string | null;
-  calories: number | null;
-  protein_g: number | null;
-  carbs_g: number | null;
-  fat_g: number | null;
-  fiber_g: number | null;
-  notes: string | null;
 };
 
-export type FoodInput = Omit<FoodEntry, 'id'>;
+export type DishInput = Omit<Dish, 'id'>;
 
-export type Totals = { calories: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number };
+/** A named combination of library dishes; its totals follow the dishes' current values. */
+export type SavedMeal = {
+  id: number;
+  name: string;
+  items: { dish: Dish; servings: number }[];
+  totals: Totals;
+};
+
+export type SavedMealInput = {
+  name: string;
+  items: { dish_id: number; servings: number }[];
+};
+
+/** A dish as eaten in a logged meal: copied from the library, so later library edits don't change it. */
+export type MealItem = Nutrition & {
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  servings: number;
+};
+
+export type Meal = {
+  id: number;
+  eaten_at: string;
+  name: string | null;
+  meal_type: MealType;
+  notes: string | null;
+  items: MealItem[];
+  /** Sum of the items' nutrition times their servings. Read-only. */
+  totals: Totals;
+};
+
+export type MealInput = Omit<Meal, 'id' | 'totals'>;
 
 export type DailySummary = {
   date: string;
   totals: Totals;
   goals: Goals;
+  /** Meals logged that day. */
   entry_count: number;
   fasting_hours: number;
 };

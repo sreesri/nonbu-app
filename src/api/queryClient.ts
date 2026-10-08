@@ -10,7 +10,7 @@ import { isQueuedWrite, registerQueuedWrites } from './writes';
 /** How long cached data and queued writes survive on the device. */
 const CACHE_MAX_AGE_MS = 7 * 24 * 3600_000;
 /** Bump when a cached response shape changes, so the old cache is discarded instead of misread. */
-const CACHE_VERSION = '1';
+const CACHE_VERSION = '2';
 const CACHE_STORAGE_KEY = 'nonbu.queryCache';
 const QUERY_STALE_MS = 30_000;
 

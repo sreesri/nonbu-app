@@ -146,12 +146,12 @@ export default function HomeScreen() {
           <Button
             title="View log"
             variant="secondary"
-            onPress={() => router.navigate('/food')}
+            onPress={() => router.navigate('/meals')}
             style={{ flex: 1 }}
           />
           <Button
-            title="+ Add food"
-            onPress={() => router.push({ pathname: '/food/new', params: { date: today } })}
+            title="+ Log meal"
+            onPress={() => router.push({ pathname: '/meal/new', params: { date: today } })}
             style={{ flex: 2 }}
           />
         </Row>

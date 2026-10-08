@@ -6,7 +6,7 @@ import { snapshotFrom } from './snapshot';
 import { pushWidget } from './sync';
 
 /**
- * Keeps the home-screen widget in step with the app: every fast/food mutation invalidates these
+ * Keeps the home-screen widget in step with the app: every fast/meal mutation invalidates these
  * queries, so their refetched data is pushed to the widget immediately. Render while signed in.
  */
 export function WidgetSync() {

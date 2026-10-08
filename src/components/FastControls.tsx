@@ -1,12 +1,15 @@
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
 
-import { useSwitchSession } from '@/api/hooks';
+import { useSaveMeal, useSwitchSession } from '@/api/hooks';
 import type { Session } from '@/api/types';
 import { formatHours, formatTime } from '@/lib/format';
+import { guessMealType } from '@/lib/nutrition';
+import { spacing } from '@/lib/theme';
 import { DateTimeSheet } from './DateTimeSheet';
-import { Body, Button, Row } from './ui';
+import { MealBuilder, toMealItem, type DraftItem } from './MealBuilder';
+import { Body, Button, Label, Row } from './ui';
 
 /** The server requires a switch to be strictly after the current session's start. */
 const MIN_SWITCH_GAP_MS = 60_000;
@@ -42,6 +45,7 @@ export function SessionPreview({
  * "Start Nh fast" / "End fast" for the current session, plus "Pick time" to start or end
  * it at an earlier time. Ending a fast before its goal asks for confirmation first.
  * With `alwaysPickTime`, the main button opens the time picker (preset to now) instead.
+ * The time picker also logs the meal that breaks the fast, or the last one before it.
  */
 export function FastControls({
   session,
@@ -55,7 +59,9 @@ export function FastControls({
   alwaysPickTime?: boolean;
 }) {
   const switchSession = useSwitchSession();
+  const saveMeal = useSaveMeal();
   const [pickingTime, setPickingTime] = useState(false);
+  const [mealItems, setMealItems] = useState<DraftItem[]>([]);
   const fasting = session?.kind === 'fast';
 
   const startFast = (at?: Date) => {
@@ -81,7 +87,21 @@ export function FastControls({
     }
   };
 
-  const openPicker = () => setPickingTime(true);
+  const openPicker = () => {
+    setMealItems([]);
+    setPickingTime(true);
+  };
+
+  const logMeal = (at: Date) => {
+    if (!mealItems.length) return;
+    saveMeal.mutate({
+      eaten_at: at.toISOString(),
+      meal_type: guessMealType(at),
+      name: null,
+      notes: null,
+      items: mealItems.map(toMealItem),
+    });
+  };
   const title = fasting ? 'End fast' : `Start ${targetHours}h fast`;
 
   return (
@@ -116,10 +136,16 @@ export function FastControls({
         onCancel={() => setPickingTime(false)}
         onSave={(at) => {
           setPickingTime(false);
+          logMeal(at);
           if (fasting) endFast(at);
           else startFast(at);
         }}
-      />
+      >
+        <View style={{ gap: spacing.sm }}>
+          <Label muted>{fasting ? 'Meal that breaks the fast' : 'Last meal before the fast'} (optional)</Label>
+          <MealBuilder items={mealItems} onChange={setMealItems} searchable={false} />
+        </View>
+      </DateTimeSheet>
     </>
   );
 }

@@ -2,8 +2,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from './client';
 import { keys } from './keys';
-import type { DailySummary, FoodEntry, OnboardingInput, Session, SessionKind, SessionSwitch, User, UserPatch } from './types';
-import { writeKeys, type SaveFoodVars, type SessionPatchVars, type SwitchVars } from './writes';
+import type {
+  DailySummary,
+  Dish,
+  Meal,
+  OnboardingInput,
+  SavedMeal,
+  Session,
+  SessionKind,
+  SessionSwitch,
+  User,
+  UserPatch,
+} from './types';
+import {
+  writeKeys,
+  type SaveDishVars,
+  type SaveMealVars,
+  type SaveSavedMealVars,
+  type SessionPatchVars,
+  type SwitchVars,
+} from './writes';
 
 // Write hooks below only name a queued write; its request and optimistic update live in
 // ./writes.ts. Writes apply to the cache immediately, so screens shouldn't wait on them.
@@ -63,39 +81,61 @@ export function useDeleteSession() {
   return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteSession });
 }
 
-// --- food ---------------------------------------------------------------
+// --- meals --------------------------------------------------------------
 
-export function useFoodDay(date: string) {
+export function useMealsDay(date: string) {
   return useQuery({
-    queryKey: keys.food(date),
-    queryFn: () => api<FoodEntry[]>('/food', { query: { date } }),
+    queryKey: keys.meals(date),
+    queryFn: () => api<Meal[]>('/meals', { query: { date } }),
   });
 }
 
-export function useFoodEntry(id: number) {
+export function useMeal(id: number) {
   const qc = useQueryClient();
   return useQuery({
-    queryKey: keys.foodEntry(id),
-    queryFn: () => api<FoodEntry>(`/food/${id}`),
-    // Open instantly (and offline) from the day list the entry was tapped in.
+    queryKey: keys.meal(id),
+    queryFn: () => api<Meal>(`/meals/${id}`),
+    // Open instantly (and offline) from the day list the meal was tapped in.
     placeholderData: () =>
       qc
-        .getQueriesData<FoodEntry[]>({ queryKey: keys.foodDays })
+        .getQueriesData<Meal[]>({ queryKey: keys.mealDays })
         .flatMap(([, list]) => list ?? [])
-        .find((e) => e.id === id),
+        .find((m) => m.id === id),
   });
 }
 
-export function useRecentFood() {
-  return useQuery({ queryKey: keys.recentFood, queryFn: () => api<FoodEntry[]>('/food/recent') });
+export function useSaveMeal() {
+  return useMutation<Meal, Error, SaveMealVars>({ mutationKey: writeKeys.saveMeal });
 }
 
-export function useSaveFood() {
-  return useMutation<FoodEntry, Error, SaveFoodVars>({ mutationKey: writeKeys.saveFood });
+export function useDeleteMeal() {
+  return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteMeal });
 }
 
-export function useDeleteFood() {
-  return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteFood });
+// --- library ------------------------------------------------------------
+
+export function useDishes() {
+  return useQuery({ queryKey: keys.dishes, queryFn: () => api<Dish[]>('/library/dishes') });
+}
+
+export function useSaveDish() {
+  return useMutation<Dish, Error, SaveDishVars>({ mutationKey: writeKeys.saveDish });
+}
+
+export function useDeleteDish() {
+  return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteDish });
+}
+
+export function useSavedMeals() {
+  return useQuery({ queryKey: keys.savedMeals, queryFn: () => api<SavedMeal[]>('/library/meals') });
+}
+
+export function useSaveSavedMeal() {
+  return useMutation<SavedMeal, Error, SaveSavedMealVars>({ mutationKey: writeKeys.saveSavedMeal });
+}
+
+export function useDeleteSavedMeal() {
+  return useMutation<void, Error, number>({ mutationKey: writeKeys.deleteSavedMeal });
 }
 
 // --- summary ------------------------------------------------------------
