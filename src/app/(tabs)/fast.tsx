@@ -1,3 +1,4 @@
+import { isSameDay } from 'date-fns';
 import { useState } from 'react';
 import { RefreshControl, Text, View } from 'react-native';
 
@@ -8,7 +9,7 @@ import { DateTimeSheet } from '@/components/DateTimeSheet';
 import { FastControls, SessionPreview } from '@/components/FastControls';
 import { ProgressRing } from '@/components/ProgressRing';
 import { Body, Button, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
-import { formatDateTime, formatDuration, formatHours, shiftDateKey, todayKey } from '@/lib/format';
+import { formatDateTime, formatDuration, formatHours, formatTime, shiftDateKey, todayKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
 import { spacing, useTheme } from '@/lib/theme';
 import { useNow } from '@/lib/useNow';
@@ -134,7 +135,12 @@ export default function FastScreen() {
             const hit = hours >= f.target_hours;
             return (
               <Row key={f.id} style={{ justifyContent: 'space-between' }}>
-                <Body>{formatDateTime(f.started_at)}</Body>
+                <View style={{ flex: 1 }}>
+                  <Body>{formatDateTime(f.started_at)}</Body>
+                  <Body muted style={{ fontSize: 13 }}>
+                    to {isSameDay(new Date(f.started_at), new Date(f.ended_at)) ? formatTime(f.ended_at) : formatDateTime(f.ended_at)}
+                  </Body>
+                </View>
                 <Body style={{ color: hit ? t.primary : t.textMuted, fontWeight: '600' }}>
                   {formatHours(hours)} {hit ? '✓' : ''}
                 </Body>
