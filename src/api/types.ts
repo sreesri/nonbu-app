@@ -118,6 +118,9 @@ export type Meal = {
 
 export type MealInput = Omit<Meal, 'id' | 'totals'>;
 
+/** Consecutive days, ending today or yesterday, on which a fast that reached its goal ended. */
+export type Streak = { days: number };
+
 export type DailySummary = {
   date: string;
   totals: Totals;

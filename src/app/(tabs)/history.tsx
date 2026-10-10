@@ -2,7 +2,7 @@ import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, Text, View } from 'react-native';
 
-import { useDeleteSession, useRangeSummary, useSessions } from '@/api/hooks';
+import { useDeleteSession, useRangeSummary, useSessions, useStreak } from '@/api/hooks';
 import type { DailySummary, Session } from '@/api/types';
 import { Body, Card, Chip, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
 import { formatDateTime, formatHours, shiftDateKey, todayKey } from '@/lib/format';
@@ -74,17 +74,6 @@ function BarChart({
   );
 }
 
-function streak(days: DailySummary[], target: number): number {
-  // Consecutive days (ending today or yesterday) with at least `target` fasting hours.
-  let count = 0;
-  for (let i = days.length - 1; i >= 0; i--) {
-    if (days[i].fasting_hours >= target) count++;
-    else if (i === days.length - 1) continue; // today may still be in progress
-    else break;
-  }
-  return count;
-}
-
 export default function HistoryScreen() {
   const t = useTheme();
   const [range, setRange] = useState(7);
@@ -92,6 +81,7 @@ export default function HistoryScreen() {
   const from = shiftDateKey(to, -(range - 1));
   const summary = useRangeSummary(from, to);
   const sessions = useSessions(from, to);
+  const streak = useStreak();
   const del = useDeleteSession();
   const now = useNow(60_000);
 
@@ -112,10 +102,11 @@ export default function HistoryScreen() {
     <Screen
       refreshControl={
         <RefreshControl
-          refreshing={summary.isRefetching || sessions.isRefetching}
+          refreshing={summary.isRefetching || sessions.isRefetching || streak.isRefetching}
           onRefresh={() => {
             summary.refetch();
             sessions.refetch();
+            streak.refetch();
           }}
         />
       }
@@ -143,7 +134,7 @@ export default function HistoryScreen() {
           <Card>
             <Row style={{ justifyContent: 'space-between' }}>
               <Label muted>Fasting hours</Label>
-              {goals ? <Label muted>🔥 {streak(days, goals.default_fast_hours)} day streak</Label> : null}
+              {streak.data ? <Label muted>🔥 {streak.data.days} day streak</Label> : null}
             </Row>
             <BarChart days={days} value={(d) => d.fasting_hours} color={t.fasting} unit="h" />
           </Card>

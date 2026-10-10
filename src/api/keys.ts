@@ -13,4 +13,5 @@ export const keys = {
   savedMeals: ['library', 'meals'] as const,
   daily: (date: string) => ['summary', 'daily', date] as const,
   range: (from: string, to: string) => ['summary', 'range', from, to] as const,
+  streak: ['summary', 'streak'] as const,
 };

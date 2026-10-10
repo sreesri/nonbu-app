@@ -11,6 +11,7 @@ import type {
   Session,
   SessionKind,
   SessionSwitch,
+  Streak,
   User,
   UserPatch,
 } from './types';
@@ -145,6 +146,10 @@ export function useDailySummary(date: string) {
     queryKey: keys.daily(date),
     queryFn: () => api<DailySummary>('/summary/daily', { query: { date } }),
   });
+}
+
+export function useStreak() {
+  return useQuery({ queryKey: keys.streak, queryFn: () => api<Streak>('/summary/streak') });
 }
 
 export function useRangeSummary(from: string, to: string) {
