@@ -26,7 +26,11 @@ function SessionRing({ session }: { session: Session }) {
   const done = elapsed >= goalMs;
 
   return (
-    <ProgressRing progress={elapsed / goalMs} color={isFast ? t.fasting : t.eating}>
+    <ProgressRing
+      progress={elapsed / goalMs}
+      color={isFast ? t.fasting : t.eating}
+      overColor={isFast ? t.eating : t.fasting}
+    >
       <Label muted>{isFast ? (done ? 'Goal reached' : 'Fasting') : done ? 'Window closed' : 'Eating window'}</Label>
       <Text style={{ fontSize: 40, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'] }}>
         {formatDuration(elapsed)}

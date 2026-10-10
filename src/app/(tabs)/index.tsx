@@ -2,10 +2,11 @@ import { router } from 'expo-router';
 import { format } from 'date-fns';
 import { RefreshControl, Text, View } from 'react-native';
 
-import { useCurrentSession, useDailySummary, useMe } from '@/api/hooks';
+import { useCurrentSession, useDailySummary, useMe, useSessions } from '@/api/hooks';
 import type { Session } from '@/api/types';
 import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
 import { FastControls } from '@/components/FastControls';
+import { TodayStrip } from '@/components/TodayStrip';
 import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
 import { formatDuration, formatKcal, toDateKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
@@ -45,7 +46,6 @@ function PhaseTimer({ session }: { session: Session }) {
   const remaining = endMs - now;
   const over = remaining <= 0;
   const isFast = session.kind === 'fast';
-  const color = isFast ? t.fasting : t.eating;
   return (
     <>
       <Row style={{ justifyContent: 'space-between' }}>
@@ -74,14 +74,20 @@ function PhaseTimer({ session }: { session: Session }) {
               : `left of your ${hours}h eating window`}
         </Body>
       </View>
-      <AnimatedProgressBar progress={(now - startMs) / totalMs} color={color} live />
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Body muted style={{ fontSize: 13 }}>Started {shortDateTime(startMs)}</Body>
-        <Body muted style={{ fontSize: 13 }}>
-          {isFast ? 'Goal' : 'Closes'} {shortDateTime(endMs)}
-        </Body>
-      </Row>
     </>
+  );
+}
+
+function PhaseTimes({ session }: { session: Session }) {
+  const startMs = new Date(session.started_at).getTime();
+  const endMs = startMs + session.target_hours * 3600_000;
+  return (
+    <Row style={{ justifyContent: 'space-between' }}>
+      <Body muted style={{ fontSize: 13 }}>Started {shortDateTime(startMs)}</Body>
+      <Body muted style={{ fontSize: 13 }}>
+        {session.kind === 'fast' ? 'Goal' : 'Closes'} {shortDateTime(endMs)}
+      </Body>
+    </Row>
   );
 }
 
@@ -92,6 +98,7 @@ export default function HomeScreen() {
   const today = toDateKey(new Date(minute));
   const me = useMe();
   const current = useCurrentSession();
+  const todaySessions = useSessions(today, today);
   const summary = useDailySummary(today);
 
   const session = current.data;
@@ -99,10 +106,11 @@ export default function HomeScreen() {
   const firstName = me.data?.name?.split(' ')[0];
   const defaultTarget = me.data?.goals.default_fast_hours ?? DEFAULT_FAST_HOURS;
 
-  const refreshing = me.isRefetching || current.isRefetching || summary.isRefetching;
+  const refreshing = me.isRefetching || current.isRefetching || todaySessions.isRefetching || summary.isRefetching;
   const refresh = () => {
     me.refetch();
     current.refetch();
+    todaySessions.refetch();
     summary.refetch();
   };
 
@@ -114,7 +122,16 @@ export default function HomeScreen() {
         {current.isPending ? (
           <Loading />
         ) : session ? (
-          <PhaseTimer session={session} />
+          <>
+            <PhaseTimer session={session} />
+            <TodayStrip
+              sessions={todaySessions.data ?? []}
+              current={session}
+              fastHours={defaultTarget}
+              now={minute}
+            />
+            <PhaseTimes session={session} />
+          </>
         ) : (
           <View style={{ gap: spacing.xs }}>
             <Label muted>Fasting</Label>
