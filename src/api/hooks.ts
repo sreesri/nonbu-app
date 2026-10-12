@@ -5,6 +5,7 @@ import { keys } from './keys';
 import type {
   DailySummary,
   Dish,
+  LibraryDish,
   Meal,
   OnboardingInput,
   SavedMeal,
@@ -116,7 +117,7 @@ export function useDeleteMeal() {
 // --- library ------------------------------------------------------------
 
 export function useDishes() {
-  return useQuery({ queryKey: keys.dishes, queryFn: () => api<Dish[]>('/library/dishes') });
+  return useQuery({ queryKey: keys.dishes, queryFn: () => api<LibraryDish[]>('/library/dishes') });
 }
 
 export function useSaveDish() {

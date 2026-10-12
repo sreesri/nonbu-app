@@ -11,10 +11,10 @@ type NumericField = (typeof NUMERIC)[number];
 
 type FormState = { name: string; unit: string } & Record<NumericField, string>;
 
-function initialState(dish: Dish | undefined): FormState {
+function initialState(dish: Dish | undefined, name: string | undefined): FormState {
   const num = (v: number | null | undefined) => (v == null ? '' : String(v));
   return {
-    name: dish?.name ?? '',
+    name: dish?.name ?? name ?? '',
     unit: dish?.unit ?? '',
     ...(Object.fromEntries(NUMERIC.map((k) => [k, num(dish?.[k])])) as Record<NumericField, string>),
   };
@@ -25,9 +25,9 @@ function parseNumber(value: string): number | null {
   return value.trim() === '' || Number.isNaN(n) ? null : n;
 }
 
-/** Add a dish to the library, or edit one (`dish`). Nutrition is for one serving. */
-export function DishForm({ dish }: { dish?: Dish }) {
-  const [form, setForm] = useState(() => initialState(dish));
+/** Add a dish to the library (`name` prefills it), or edit one (`dish`). Nutrition is for one serving. */
+export function DishForm({ dish, name }: { dish?: Dish; name?: string }) {
+  const [form, setForm] = useState(() => initialState(dish, name));
   const save = useSaveDish();
   const remove = useDeleteDish();
 

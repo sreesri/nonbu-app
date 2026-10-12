@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
 import { useSaveMeal, useSwitchSession } from '@/api/hooks';
-import type { Session } from '@/api/types';
+import type { MealItem, Session } from '@/api/types';
 import { formatHours, formatTime } from '@/lib/format';
 import { guessMealType } from '@/lib/nutrition';
 import { spacing } from '@/lib/theme';
 import { DateTimeSheet } from './DateTimeSheet';
-import { MealBuilder, toMealItem, type DraftItem } from './MealBuilder';
+import { MealBuilder } from './MealBuilder';
 import { Body, Button, Label, Row } from './ui';
 
 /** The server requires a switch to be strictly after the current session's start. */
@@ -60,7 +60,7 @@ export function FastControls({
   const saveMeal = useSaveMeal();
   // When the picker was opened: its default and latest selectable time. Null while closed.
   const [pickerOpenedAt, setPickerOpenedAt] = useState<Date | null>(null);
-  const [mealItems, setMealItems] = useState<DraftItem[]>([]);
+  const [mealItems, setMealItems] = useState<MealItem[]>([]);
   const fasting = session?.kind === 'fast';
 
   const startFast = (at?: Date) => {
@@ -98,7 +98,7 @@ export function FastControls({
       meal_type: guessMealType(at),
       name: null,
       notes: null,
-      items: mealItems.map(toMealItem),
+      items: mealItems,
     });
   };
   const title = fasting ? 'End fast' : `Start ${targetHours}h fast`;

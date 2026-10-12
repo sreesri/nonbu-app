@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useDeleteMeal, useSaveMeal } from '@/api/hooks';
-import { MEAL_TYPES, type Meal, type MealType } from '@/api/types';
+import { MEAL_TYPES, type Meal, type MealItem, type MealType } from '@/api/types';
 import { todayKey } from '@/lib/format';
 import { guessMealType } from '@/lib/nutrition';
 import { spacing } from '@/lib/theme';
 import { DateTimeField } from './DateTimeField';
-import { MealBuilder, toMealItem, type DraftItem } from './MealBuilder';
+import { MealBuilder } from './MealBuilder';
 import { Button, Chip, Field, Label, Row, Screen } from './ui';
 
 function initialEatenAt(meal: Meal | undefined, date: string | undefined): Date {
@@ -25,7 +25,10 @@ export function MealForm({ meal, date }: { meal?: Meal; date?: string }) {
   const [mealType, setMealType] = useState<MealType>(() => meal?.meal_type ?? guessMealType(eatenAt));
   const [name, setName] = useState(meal?.name ?? '');
   const [notes, setNotes] = useState(meal?.notes ?? '');
-  const [items, setItems] = useState<DraftItem[]>(meal?.items ?? []);
+  const [items, setItems] = useState<MealItem[]>(
+    // Meals cached before items carried their dish have no `dish_id`.
+    () => meal?.items.map((i) => ({ ...i, dish_id: i.dish_id ?? null })) ?? [],
+  );
   const save = useSaveMeal();
   const remove = useDeleteMeal();
 
@@ -36,7 +39,7 @@ export function MealForm({ meal, date }: { meal?: Meal; date?: string }) {
       meal_type: mealType,
       name: name.trim() || null,
       notes: notes.trim() || null,
-      items: items.map(toMealItem),
+      items,
     });
     router.back();
   };
@@ -61,7 +64,6 @@ export function MealForm({ meal, date }: { meal?: Meal; date?: string }) {
       <DateTimeField label="Eaten at" value={eatenAt} onChange={setEatenAt} maximumDate={new Date()} />
 
       <MealBuilder items={items} onChange={setItems} />
-      <Button title="+ New dish" variant="secondary" onPress={() => router.push('/library/dish/new')} />
 
       <Field label="Name (optional)" value={name} onChangeText={setName} placeholder="e.g. Sunday lunch" />
       <Field label="Notes" value={notes} onChangeText={setNotes} multiline />

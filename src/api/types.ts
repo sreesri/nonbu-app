@@ -84,6 +84,10 @@ export type Dish = Nutrition & {
 
 export type DishInput = Omit<Dish, 'id'>;
 
+/** A library dish with how often and when it was last eaten, for suggestions. Optional because
+ * caches saved before the server reported them don't have them. */
+export type LibraryDish = Dish & { times_eaten?: number; last_eaten_at?: string | null };
+
 /** A named combination of library dishes; its totals follow the dishes' current values. */
 export type SavedMeal = {
   id: number;
@@ -99,6 +103,8 @@ export type SavedMealInput = {
 
 /** A dish as eaten in a logged meal: copied from the library, so later library edits don't change it. */
 export type MealItem = Nutrition & {
+  /** The library dish it was copied from, if any. */
+  dish_id: number | null;
   name: string;
   quantity: number | null;
   unit: string | null;

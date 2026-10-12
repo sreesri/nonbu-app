@@ -1,4 +1,4 @@
-import type { Dish, MealItem, MealType, Nutrition, Totals } from '@/api/types';
+import type { Dish, LibraryDish, MealItem, MealType, Nutrition, Totals } from '@/api/types';
 import { round } from './format';
 
 export const NUTRIENTS: (keyof Totals)[] = ['calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'];
@@ -24,8 +24,35 @@ export function mealTotals(items: MealItem[]): Totals {
 
 /** A logged-meal item copied from a library dish. */
 export function itemFromDish(dish: Dish, servings = 1): MealItem {
-  const { id: _id, ...rest } = dish;
-  return { ...rest, servings };
+  const { id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g } = dish;
+  return { dish_id: id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g, servings };
+}
+
+const timesEaten = (d: LibraryDish) => d.times_eaten ?? 0;
+
+/** Dishes most recently eaten first, then the most eaten; never-eaten ones keep their order. */
+export function recentDishes<D extends LibraryDish>(dishes: D[]): D[] {
+  const last = (d: D) => (d.last_eaten_at ? Date.parse(d.last_eaten_at) : 0);
+  return [...dishes].sort((a, b) => last(b) - last(a) || timesEaten(b) - timesEaten(a));
+}
+
+/** Dishes matching `query`: names starting with it first, then a word starting with it, then
+ * anywhere in the name; ties go to the most eaten. */
+export function searchDishes<D extends LibraryDish>(dishes: D[], query: string): D[] {
+  const q = query.trim().toLowerCase();
+  const rank = (d: D) => {
+    const name = d.name.toLowerCase();
+    if (name.startsWith(q)) return 0;
+    if (name.split(/\s+/).some((word) => word.startsWith(q))) return 1;
+    return name.includes(q) ? 2 : null;
+  };
+  return dishes
+    .flatMap((d) => {
+      const r = rank(d);
+      return r === null ? [] : [{ d, r }];
+    })
+    .sort((a, b) => a.r - b.r || timesEaten(b.d) - timesEaten(a.d))
+    .map(({ d }) => d);
 }
 
 /** The usual meal for a time of day, as a default the user can change. */

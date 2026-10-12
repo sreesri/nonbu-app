@@ -1,37 +1,33 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useDishes, useSavedMeals } from '@/api/hooks';
-import type { Dish, MealItem } from '@/api/types';
+import type { LibraryDish, MealItem } from '@/api/types';
 import { isUnsynced } from '@/api/writes';
 import { round } from '@/lib/format';
-import { formatMacros, formatServing, itemFromDish, mealTotals } from '@/lib/nutrition';
+import { formatMacros, formatServing, itemFromDish, mealTotals, recentDishes, searchDishes } from '@/lib/nutrition';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { Body, Chip, Field, Label, Row } from './ui';
 
-/** A meal item while it's being put together; `dishId` links it back to its library dish. */
-export type DraftItem = MealItem & { dishId?: number };
-
 const SERVING_STEP = 0.5;
+const MAX_SUGGESTIONS = 5;
 
 /** Adds each item, or more servings of it when its dish is already in the meal. */
-function mergeItems(items: DraftItem[], added: DraftItem[]): DraftItem[] {
+function mergeItems(items: MealItem[], added: MealItem[]): MealItem[] {
   const merged = [...items];
   for (const item of added) {
-    const i = item.dishId === undefined ? -1 : merged.findIndex((m) => m.dishId === item.dishId);
+    const i = item.dish_id === null ? -1 : merged.findIndex((m) => m.dish_id === item.dish_id);
     if (i === -1) merged.push(item);
     else merged[i] = { ...merged[i], servings: merged[i].servings + item.servings };
   }
   return merged;
 }
 
-function fromDish(dish: Dish, servings = 1): DraftItem {
-  return { ...itemFromDish(dish, servings), dishId: dish.id };
-}
-
 /**
- * Builds a meal from the library: tap saved meals and dishes to add them, then adjust servings.
- * Shows the meal's total nutrition, the sum of its dishes times their servings.
+ * Builds a meal from the library. Type a dish name and pick a suggestion (Enter adds the top
+ * one); with nothing typed it suggests recent dishes. A name with no match can be created as a
+ * new dish. Shows the meal's total nutrition, the sum of its dishes times their servings.
  */
 export function MealBuilder({
   items,
@@ -40,10 +36,11 @@ export function MealBuilder({
   searchable = true,
   syncedDishesOnly = false,
 }: {
-  items: DraftItem[];
-  onChange: (items: DraftItem[]) => void;
+  items: MealItem[];
+  onChange: (items: MealItem[]) => void;
   showSavedMeals?: boolean;
-  /** Off inside bottom sheets, where the keyboard would cover the sheet. */
+  /** Off inside bottom sheets, where the keyboard would cover the sheet: dishes are then a
+   * row of chips, most recent first. */
   searchable?: boolean;
   /** Saved meals link to dishes by id, so they can't use a dish the server hasn't created yet. */
   syncedDishesOnly?: boolean;
@@ -52,10 +49,26 @@ export function MealBuilder({
   const savedMeals = useSavedMeals();
   const [query, setQuery] = useState('');
 
-  const matches = (name: string) => name.toLowerCase().includes(query.trim().toLowerCase());
-  const dishOptions = (dishes.data ?? []).filter((d) => matches(d.name) && !(syncedDishesOnly && isUnsynced(d)));
-  const mealOptions = showSavedMeals ? (savedMeals.data ?? []).filter((m) => matches(m.name)) : [];
-  const libraryEmpty = dishes.isSuccess && dishes.data.length === 0;
+  const library = (dishes.data ?? []).filter((d) => !(syncedDishesOnly && isUnsynced(d)));
+  const libraryEmpty = dishes.isSuccess && library.length === 0;
+  const q = query.trim();
+  const inMeal = (d: LibraryDish) => items.some((i) => i.dish_id === d.id);
+  const suggestions = q
+    ? searchDishes(library, q).slice(0, MAX_SUGGESTIONS)
+    : recentDishes(library.filter((d) => !inMeal(d))).slice(0, MAX_SUGGESTIONS);
+  const exactMatch = library.some((d) => d.name.trim().toLowerCase() === q.toLowerCase());
+  const anyEaten = library.some((d) => d.last_eaten_at);
+
+  const add = (dish: LibraryDish) => {
+    onChange(mergeItems(items, [itemFromDish(dish)]));
+    setQuery('');
+  };
+  // The query stays, so the new dish is the top suggestion when the user comes back.
+  const create = () => router.push({ pathname: '/library/dish/new', params: { name: q } });
+  const onSubmit = () => {
+    if (suggestions.length) add(suggestions[0]);
+    else if (q) create();
+  };
 
   const setServings = (index: number, servings: number) =>
     onChange(items.map((item, i) => (i === index ? { ...item, servings } : item)));
@@ -65,38 +78,55 @@ export function MealBuilder({
 
   return (
     <View style={{ gap: spacing.md }}>
-      {searchable && !libraryEmpty ? (
-        <Field label="Search library" value={query} onChangeText={setQuery} placeholder="Dish or meal name" />
-      ) : null}
-
-      {mealOptions.length ? (
+      {showSavedMeals && savedMeals.data?.length ? (
         <ChipRow label="Saved meals">
-          {mealOptions.map((m) => (
+          {savedMeals.data.map((m) => (
             <Chip
               key={m.id}
               label={m.name}
               selected={false}
-              onPress={() => onChange(mergeItems(items, m.items.map((i) => fromDish(i.dish, i.servings))))}
+              onPress={() => onChange(mergeItems(items, m.items.map((i) => itemFromDish(i.dish, i.servings))))}
             />
           ))}
         </ChipRow>
       ) : null}
 
-      {libraryEmpty ? (
-        <Body muted>Your library has no dishes yet. Add some under Meals → Library.</Body>
+      {!searchable ? (
+        libraryEmpty ? (
+          <Body muted>Your library has no dishes yet. Add some under Meals → Library.</Body>
+        ) : (
+          <ChipRow label="Dishes">
+            {recentDishes(library).map((d) => (
+              <Chip key={d.id} label={d.name} selected={inMeal(d)} onPress={() => add(d)} />
+            ))}
+          </ChipRow>
+        )
       ) : (
-        <ChipRow label="Dishes">
-          {dishOptions.map((d) => (
-            <Chip
-              key={d.id}
-              label={d.name}
-              selected={items.some((i) => i.dishId === d.id)}
-              onPress={() => onChange(mergeItems(items, [fromDish(d)]))}
-            />
-          ))}
-        </ChipRow>
+        <View style={{ gap: spacing.sm }}>
+          <Field
+            label="Add a dish"
+            value={query}
+            onChangeText={setQuery}
+            placeholder={libraryEmpty ? 'Name of your first dish' : 'Start typing a dish name'}
+            returnKeyType="done"
+            // Keeps the keyboard up after Enter, ready for the next dish.
+            submitBehavior="submit"
+            onSubmitEditing={onSubmit}
+            autoCorrect={false}
+          />
+          {!q && suggestions.length ? <Label muted>{anyEaten ? 'Recent' : 'Your dishes'}</Label> : null}
+          {suggestions.length || q ? (
+            <View>
+              {suggestions.map((d, i) => (
+                <SuggestionRow key={d.id} dish={d} highlighted={q !== '' && i === 0} onPress={() => add(d)} />
+              ))}
+              {q && !exactMatch ? <CreateRow name={q} onPress={create} /> : null}
+            </View>
+          ) : null}
+        </View>
       )}
 
+      {items.length ? <Label muted>In this meal</Label> : null}
       {items.map((item, i) => (
         <ItemRow
           // Items have no ids of their own; the position is stable while the list is edited in place.
@@ -138,12 +168,59 @@ function ChipRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+/** A suggested dish; the highlighted one is what Enter adds. */
+function SuggestionRow({ dish, highlighted, onPress }: { dish: LibraryDish; highlighted: boolean; onPress: () => void }) {
+  const t = useTheme();
+  const serving = formatServing(dish.quantity, dish.unit);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Add ${dish.name}`}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radius.sm,
+        backgroundColor: highlighted || pressed ? t.button.secondary.bg : 'transparent',
+      })}
+    >
+      <View style={{ flex: 1 }}>
+        <Body>{dish.name}</Body>
+        <Body muted style={{ fontSize: 13 }}>
+          {serving ? `${serving} · ` : ''}
+          {round(dish.calories ?? 0)} kcal
+        </Body>
+      </View>
+      <Text style={{ color: t.primary, fontSize: 20, fontWeight: '600' }}>+</Text>
+    </Pressable>
+  );
+}
+
+function CreateRow({ name, onPress }: { name: string; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => ({ paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, opacity: pressed ? 0.7 : 1 })}
+    >
+      <Text style={{ color: t.primary, fontWeight: '600' }}>+ Create “{name}”</Text>
+      <Body muted style={{ fontSize: 13 }}>
+        New dish in your library
+      </Body>
+    </Pressable>
+  );
+}
+
 function ItemRow({
   item,
   onServings,
   onRemove,
 }: {
-  item: DraftItem;
+  item: MealItem;
   onServings: (servings: number) => void;
   onRemove: () => void;
 }) {
@@ -207,9 +284,4 @@ function SmallButton({
       <Text style={{ color: t.button.secondary.fg, fontSize: 16, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
-}
-
-/** The API's shape for an item: drops the client-only library link. */
-export function toMealItem({ dishId: _dishId, ...item }: DraftItem): MealItem {
-  return item;
 }

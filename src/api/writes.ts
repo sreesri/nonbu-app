@@ -8,6 +8,7 @@ import { mealTotals, NUTRIENTS, sumTotals } from '@/lib/nutrition';
 import type {
   DailySummary,
   Dish,
+  LibraryDish,
   DishInput,
   Meal,
   MealInput,
@@ -51,8 +52,9 @@ const AFFECTS: Record<WriteName, CacheArea[]> = {
   switchSession: ['sessions', 'summary'],
   updateSession: ['sessions', 'summary'],
   deleteSession: ['sessions', 'summary'],
-  saveMeal: ['meals', 'summary'],
-  deleteMeal: ['meals', 'summary'],
+  // The library reports how often and when each dish was eaten.
+  saveMeal: ['meals', 'summary', 'library'],
+  deleteMeal: ['meals', 'summary', 'library'],
   saveDish: ['library'],
   deleteDish: ['library'],
   saveSavedMeal: ['library'],
@@ -148,6 +150,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
       const meal: Meal = { ...merged, id: id ?? tempId(), totals: mealTotals(merged.items) };
       addMeal(qc, meal);
       qc.setQueryData(keys.meal(meal.id), meal);
+      if (id === undefined) markEaten(qc, meal);
     },
   });
 
@@ -171,9 +174,9 @@ export function registerQueuedWrites(qc: QueryClient): void {
         : api<Dish>(`/library/dishes/${id}`, { method: 'PATCH', body }),
     onMutate: async ({ id, ...body }: SaveDishVars) => {
       await qc.cancelQueries({ queryKey: ['library'] });
-      const previous = qc.getQueryData<Dish[]>(keys.dishes)?.find((d) => d.id === id);
-      const dish: Dish = { ...EMPTY_DISH, ...previous, ...body, id: id ?? tempId() };
-      qc.setQueryData<Dish[]>(keys.dishes, (list) => byName([...(list ?? []).filter((d) => d.id !== dish.id), dish]));
+      const previous = qc.getQueryData<LibraryDish[]>(keys.dishes)?.find((d) => d.id === id);
+      const dish: LibraryDish = { ...EMPTY_DISH, ...previous, ...body, id: id ?? tempId() };
+      qc.setQueryData<LibraryDish[]>(keys.dishes, (list) => byName([...(list ?? []).filter((d) => d.id !== dish.id), dish]));
       // Saved meals show their dishes' current values.
       qc.setQueryData<SavedMeal[]>(keys.savedMeals, (meals) =>
         meals?.map((m) => withTotals({ ...m, items: m.items.map((i) => (i.dish.id === dish.id ? { ...i, dish } : i)) })),
@@ -187,7 +190,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
     // Mirrors the server: the dish leaves every saved meal, and a meal left empty is deleted.
     onMutate: async (id: number) => {
       await qc.cancelQueries({ queryKey: ['library'] });
-      qc.setQueryData<Dish[]>(keys.dishes, (list) => list?.filter((d) => d.id !== id));
+      qc.setQueryData<LibraryDish[]>(keys.dishes, (list) => list?.filter((d) => d.id !== id));
       qc.setQueryData<SavedMeal[]>(keys.savedMeals, (meals) =>
         meals
           ?.map((m) => withTotals({ ...m, items: m.items.filter((i) => i.dish.id !== id) }))
@@ -205,7 +208,7 @@ export function registerQueuedWrites(qc: QueryClient): void {
     onMutate: async ({ id, name, items }: SaveSavedMealVars) => {
       await qc.cancelQueries({ queryKey: ['library'] });
       const previous = qc.getQueryData<SavedMeal[]>(keys.savedMeals)?.find((m) => m.id === id);
-      const dishes = new Map((qc.getQueryData<Dish[]>(keys.dishes) ?? []).map((d) => [d.id, d]));
+      const dishes = new Map((qc.getQueryData<LibraryDish[]>(keys.dishes) ?? []).map((d) => [d.id, d]));
       const resolved = items?.flatMap(({ dish_id, servings }) => {
         const dish = dishes.get(dish_id);
         return dish ? [{ dish, servings }] : [];
@@ -285,6 +288,23 @@ const EMPTY_MEAL: MealInput = {
   notes: null,
   items: [],
 };
+
+/** Moves a new meal's dishes up the suggestions now, rather than once the server has it. */
+function markEaten(qc: QueryClient, meal: Meal) {
+  const ids = new Set(meal.items.map((i) => i.dish_id));
+  qc.setQueryData<LibraryDish[]>(keys.dishes, (list) =>
+    list?.map((d) =>
+      ids.has(d.id)
+        ? {
+            ...d,
+            times_eaten: (d.times_eaten ?? 0) + 1,
+            last_eaten_at:
+              d.last_eaten_at && d.last_eaten_at > meal.eaten_at ? d.last_eaten_at : meal.eaten_at,
+          }
+        : d,
+    ),
+  );
+}
 
 const EMPTY_DISH: DishInput = {
   name: '',
