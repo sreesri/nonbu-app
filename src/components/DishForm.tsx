@@ -3,7 +3,10 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
 import { useDeleteDish, useSaveDish } from '@/api/hooks';
-import type { Dish } from '@/api/types';
+import type { Dish, DishInput } from '@/api/types';
+import { tempId } from '@/api/writes';
+import { itemFromDish } from '@/lib/nutrition';
+import { deliverPicked } from '@/lib/pickedItems';
 import { Body, Button, Field, Row, Screen } from './ui';
 
 const NUMERIC = ['quantity', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g'] as const;
@@ -25,8 +28,11 @@ function parseNumber(value: string): number | null {
   return value.trim() === '' || Number.isNaN(n) ? null : n;
 }
 
-/** Add a dish to the library (`name` prefills it), or edit one (`dish`). Nutrition is for one serving. */
-export function DishForm({ dish, name }: { dish?: Dish; name?: string }) {
+/**
+ * Add a dish to the library, or edit one (`dish`). Nutrition is for one serving. `name` prefills
+ * a new dish; `deliverTo` adds it to the meal being put together on the screen that asked for it.
+ */
+export function DishForm({ dish, name, deliverTo }: { dish?: Dish; name?: string; deliverTo?: string }) {
   const [form, setForm] = useState(() => initialState(dish, name));
   const save = useSaveDish();
   const remove = useDeleteDish();
@@ -34,12 +40,19 @@ export function DishForm({ dish, name }: { dish?: Dish; name?: string }) {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const onSave = () => {
-    save.mutate({
-      id: dish?.id,
+    const input: DishInput = {
       name: form.name.trim(),
       unit: form.unit.trim() || null,
-      ...Object.fromEntries(NUMERIC.map((k) => [k, parseNumber(form[k])])),
-    });
+      ...(Object.fromEntries(NUMERIC.map((k) => [k, parseNumber(form[k])])) as Record<NumericField, number | null>),
+    };
+    if (dish || !deliverTo) {
+      save.mutate({ id: dish?.id, ...input });
+    } else {
+      // Created while picking dishes for a meal: it goes straight into that meal.
+      const id = tempId();
+      save.mutate({ ...input, tempId: id });
+      deliverPicked(deliverTo, [itemFromDish({ ...input, id })]);
+    }
     router.back();
   };
 

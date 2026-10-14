@@ -142,7 +142,7 @@ export function FastControls({
       >
         <View style={{ gap: spacing.sm }}>
           <Label muted>{fasting ? 'Meal that breaks the fast' : 'Last meal before the fast'} (optional)</Label>
-          <MealBuilder items={mealItems} onChange={setMealItems} searchable={false} />
+          <MealBuilder items={mealItems} onChange={setMealItems} />
         </View>
       </DateTimeSheet>
     </>

@@ -22,6 +22,20 @@ export function mealTotals(items: MealItem[]): Totals {
   return sumTotals(items.map((item) => ({ nutrition: item, servings: item.servings })));
 }
 
+/** Calories per gram, for showing how much of a meal's energy each macro supplies. */
+export const KCAL_PER_GRAM = { protein_g: 4, carbs_g: 4, fat_g: 9 } as const;
+
+/** Adds each item, or more servings of it when its dish is already in the meal. */
+export function mergeItems(items: MealItem[], added: MealItem[]): MealItem[] {
+  const merged = [...items];
+  for (const item of added) {
+    const i = item.dish_id === null ? -1 : merged.findIndex((m) => m.dish_id === item.dish_id);
+    if (i === -1) merged.push(item);
+    else merged[i] = { ...merged[i], servings: merged[i].servings + item.servings };
+  }
+  return merged;
+}
+
 /** A logged-meal item copied from a library dish. */
 export function itemFromDish(dish: Dish, servings = 1): MealItem {
   const { id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g } = dish;

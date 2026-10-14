@@ -71,7 +71,8 @@ const MAX_RETRY_DELAY_MS = 30_000;
 export type SwitchVars = SessionSwitch & { at: string };
 export type SessionPatchVars = Partial<Omit<Session, 'kind'>> & { id: number };
 export type SaveMealVars = Partial<MealInput> & { id?: number };
-export type SaveDishVars = Partial<DishInput> & { id?: number };
+/** `tempId` lets the caller refer to a new dish before the server has given it an id. */
+export type SaveDishVars = Partial<DishInput> & { id?: number; tempId?: number };
 export type SaveSavedMealVars = Partial<SavedMealInput> & { id?: number };
 
 export function isQueuedWrite(mutation: { meta?: MutationMeta }): boolean {
@@ -79,7 +80,7 @@ export function isQueuedWrite(mutation: { meta?: MutationMeta }): boolean {
 }
 
 /** Ids for optimistic records the server hasn't assigned an id to yet; never valid server ids. */
-function tempId(): number {
+export function tempId(): number {
   return -Date.now();
 }
 
@@ -168,14 +169,14 @@ export function registerQueuedWrites(qc: QueryClient): void {
 
   qc.setMutationDefaults(writeKeys.saveDish, {
     ...queued('saveDish'),
-    mutationFn: ({ id, ...body }: SaveDishVars) =>
+    mutationFn: ({ id, tempId: _tempId, ...body }: SaveDishVars) =>
       id === undefined
         ? api<Dish>('/library/dishes', { method: 'POST', body })
         : api<Dish>(`/library/dishes/${id}`, { method: 'PATCH', body }),
-    onMutate: async ({ id, ...body }: SaveDishVars) => {
+    onMutate: async ({ id, tempId: chosenId, ...body }: SaveDishVars) => {
       await qc.cancelQueries({ queryKey: ['library'] });
       const previous = qc.getQueryData<LibraryDish[]>(keys.dishes)?.find((d) => d.id === id);
-      const dish: LibraryDish = { ...EMPTY_DISH, ...previous, ...body, id: id ?? tempId() };
+      const dish: LibraryDish = { ...EMPTY_DISH, ...previous, ...body, id: id ?? chosenId ?? tempId() };
       qc.setQueryData<LibraryDish[]>(keys.dishes, (list) => byName([...(list ?? []).filter((d) => d.id !== dish.id), dish]));
       // Saved meals show their dishes' current values.
       qc.setQueryData<SavedMeal[]>(keys.savedMeals, (meals) =>
