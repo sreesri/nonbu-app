@@ -7,7 +7,7 @@ import type { Session } from '@/api/types';
 import { AnimatedProgressBar } from '@/components/AnimatedProgressBar';
 import { FastControls } from '@/components/FastControls';
 import { TodayStrip } from '@/components/TodayStrip';
-import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
+import { Body, Button, Card, ErrorText, Label, Loading, QueryFallback, Row, Screen, Title } from '@/components/ui';
 import { formatDuration, formatKcal, toDateKey } from '@/lib/format';
 import { DEFAULT_FAST_HOURS } from '@/lib/goals';
 import { spacing, useTheme } from '@/lib/theme';
@@ -170,7 +170,7 @@ export default function HomeScreen() {
             );
           })()
         ) : (
-          <Loading />
+          <QueryFallback error={summary.error} onRetry={() => summary.refetch()} />
         )}
         <Row>
           <Button
@@ -187,7 +187,7 @@ export default function HomeScreen() {
         </Row>
       </Card>
 
-      <ErrorText error={me.error ?? current.error ?? summary.error} />
+      <ErrorText error={me.error ?? current.error} />
     </Screen>
   );
 }

@@ -147,6 +147,17 @@ export function Loading() {
   );
 }
 
+/** Stands in for a query's data until it arrives: a spinner, or why it failed and a retry. */
+export function QueryFallback({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  if (!error) return <Loading />;
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <ErrorText error={error} />
+      <Button title="Try again" variant="secondary" onPress={onRetry} />
+    </View>
+  );
+}
+
 export function ErrorText({ error }: { error: unknown }) {
   const t = useTheme();
   if (!error) return null;

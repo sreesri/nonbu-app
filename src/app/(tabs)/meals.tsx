@@ -6,7 +6,7 @@ import { useDailySummary, useMealsDay } from '@/api/hooks';
 import type { Meal } from '@/api/types';
 import { isUnsynced } from '@/api/writes';
 import { MacroBar } from '@/components/MacroBar';
-import { Body, Button, Card, ErrorText, Label, Loading, Row, Screen, Title } from '@/components/ui';
+import { Body, Button, Card, ErrorText, Label, QueryFallback, Row, Screen, Title } from '@/components/ui';
 import { formatDayLabel, formatHours, formatTime, round, shiftDateKey, todayKey } from '@/lib/format';
 import { formatMacros, formatServing } from '@/lib/nutrition';
 import { useTheme } from '@/lib/theme';
@@ -98,7 +98,7 @@ export default function MealsScreen() {
             <Body muted>Fasted {formatHours(s.fasting_hours)} this day</Body>
           </>
         ) : (
-          <Loading />
+          <QueryFallback error={summary.error} onRetry={() => summary.refetch()} />
         )}
       </Card>
 
@@ -111,12 +111,13 @@ export default function MealsScreen() {
         <Button title="Library" variant="secondary" onPress={() => router.push('/library')} style={{ flex: 1 }} />
       </Row>
 
-      <ErrorText error={meals.error ?? summary.error} />
+      {/* A failed refresh keeps the meals already shown; with none to show, the fallback explains. */}
+      {meals.data ? <ErrorText error={meals.error} /> : null}
 
-      {meals.isPending ? (
-        <Loading />
+      {!meals.data ? (
+        <QueryFallback error={meals.error} onRetry={() => meals.refetch()} />
       ) : (
-        meals.data?.map((meal) =>
+        meals.data.map((meal) =>
           // Meals logged offline can't be opened until the server has given them an id.
           isUnsynced(meal) ? (
             <MealCard key={meal.id} meal={meal} />
